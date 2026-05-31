@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<meta name="color-scheme" content="dark">
+<title>Health — Daily Stack & WHOOP</title>
+<script src="topbar.js" defer></script>
+<style>
+:root {
+  --bg: #050506;
+  --bg-card: rgba(255,255,255,0.04);
+  --bg-secondary: rgba(255,255,255,0.035);
+  --bg-input: rgba(0,0,0,0.28);
+  --bg-input-focus: rgba(0,0,0,0.36);
+  --bg-dropdown: rgba(15,15,18,0.96);
+  --border: rgba(255,255,255,0.06);
+  --border-soft: rgba(255,255,255,0.04);
+  --border-strong: rgba(255,255,255,0.12);
+  --text-primary: #FAFAFA;
+  --text-secondary: #B8B6B0;
+  --text-tertiary: #76746E;
+  --text-quaternary: #4D4B47;
+  --accent: #1D9E75;
+  --accent-glow: rgba(29,158,117,0.35);
+  --warning: #FF8A4D;
+  --warning-bg: rgba(163,45,45,0.10);
+  --tag-stack: #D8AB30;
+  --tag-stack-bg: rgba(216,171,48,0.15);
+  --font: -apple-system, BlinkMacSystemFont,"Inter","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font-mono: ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text-secondary);font-family:var(--font);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
+body{min-height:100vh;position:relative;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(60% 50% at 82% 14%,rgba(224,118,88,0.16) 0%,transparent 60%),radial-gradient(50% 40% at 18% 90%,rgba(180,180,200,0.06) 0%,transparent 60%);filter:blur(40px);pointer-events:none;z-index:0;animation:drift 36s ease-in-out infinite alternate;}
+body::after{content:'';position:fixed;inset:0;background-image:radial-gradient(rgba(255,255,255,0.014) 1px,transparent 1px);background-size:3px 3px;pointer-events:none;z-index:1;}
+@keyframes drift{0%{transform:translate(0,0);}100%{transform:translate(-2%,2%);}}
+main{position:relative;z-index:2;max-width:720px;margin:0 auto;padding:56px 20px 80px;padding-top:max(56px,env(safe-area-inset-top,56px));}
+.section-title{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-tertiary);margin:0 4px 14px;display:flex;align-items:center;gap:12px;}
+.section-title::before{content:'≡';font-size:14px;opacity:0.5;}
+
+/* ═══════════════════════════════════════════
+   WHOOP CARD
+═══════════════════════════════════════════ */
+.whoop-section{margin-bottom:32px;}
+.whoop-card{padding:22px 22px 18px;background:rgba(255,255,255,0.025);border:1px solid transparent;border-radius:22px;box-shadow:0 1px 0 0 rgba(255,255,255,0.06) inset,0 12px 40px rgba(0,0,0,0.45),0 1px 2px rgba(0,0,0,0.25);}
+.whoop-brand{display:inline-flex;align-items:center;gap:8px;}
+.whoop-brand-mark{width:22px;height:22px;border-radius:50%;background:#FFFFFF;color:#0A0A0B;font-weight:900;font-size:12px;display:inline-flex;align-items:center;justify-content:center;letter-spacing:-0.04em;box-shadow:0 0 12px rgba(255,255,255,0.20);}
+.whoop-brand-text{font-weight:800;font-size:13px;letter-spacing:0.18em;color:var(--text-primary);}
+.whoop-disconnected{display:flex;flex-direction:column;align-items:center;text-align:center;padding:18px 8px 8px;gap:6px;}
+.whoop-disconnected .whoop-brand{margin-bottom:14px;}
+.whoop-disconnected-title{font-size:22px;font-weight:700;color:var(--text-primary);letter-spacing:-0.02em;margin-top:2px;}
+.whoop-disconnected-sub{font-size:13px;color:var(--text-tertiary);max-width:280px;line-height:1.5;margin-bottom:18px;}
+.whoop-connect-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 22px;border-radius:999px;border:1px solid rgba(255,255,255,0.85);background:linear-gradient(180deg,#FFFFFF 0%,#E8E5DD 100%);color:#0A0A0B;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;transition:transform 0.12s,box-shadow 0.18s,background 0.18s;box-shadow:inset 0 1px 0 rgba(255,255,255,0.55),0 6px 20px rgba(0,0,0,0.45);}
+.whoop-connect-btn:hover{background:linear-gradient(180deg,#FFFFFF 0%,#F2F0EA 100%);transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.65),0 8px 24px rgba(0,0,0,0.55);}
+.whoop-connect-btn:active{transform:translateY(0) scale(0.98);}
+.whoop-auth-status{font-size:11px;color:var(--text-tertiary);margin-top:12px;min-height:14px;font-style:italic;}
+.whoop-header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
+.whoop-live-tag{display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#6BE3A4;margin-left:4px;}
+.whoop-live-dot{width:6px;height:6px;border-radius:50%;background:#6BE3A4;box-shadow:0 0 8px rgba(107,227,164,0.65);animation:whoop-pulse 1.6s ease-in-out infinite;}
+@keyframes whoop-pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.5;transform:scale(0.85);}}
+.whoop-header-right{display:flex;align-items:center;gap:10px;}
+.whoop-updated{font-size:11px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;font-family:var(--font-mono);}
+.whoop-refresh-btn{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--text-secondary);cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;transition:background 0.18s,color 0.18s,transform 0.12s;}
+.whoop-refresh-btn:hover{background:rgba(255,255,255,0.10);color:var(--text-primary);}
+.whoop-refresh-btn:active{transform:rotate(180deg);}
+.whoop-refresh-btn svg{display:block;}
+.whoop-calibrating{display:flex;align-items:center;gap:8px;padding:9px 14px;margin-bottom:16px;background:rgba(242,192,99,0.08);border:1px solid rgba(242,192,99,0.28);border-radius:10px;color:#F2C063;font-size:11.5px;font-weight:500;}
+.whoop-cal-dot{width:6px;height:6px;border-radius:50%;background:#F2C063;box-shadow:0 0 8px rgba(242,192,99,0.55);animation:whoop-pulse 1.6s ease-in-out infinite;flex-shrink:0;}
+.whoop-ring-wrap{position:relative;width:220px;max-width:78%;margin:0 auto 24px;aspect-ratio:1;}
+.whoop-ring{width:100%;height:100%;transform:rotate(-90deg);filter:drop-shadow(0 0 24px rgba(255,255,255,0.05));}
+.whoop-ring-track{fill:none;stroke:rgba(255,255,255,0.06);stroke-width:12;}
+.whoop-ring-fill{fill:none;stroke:#FFFFFF;stroke-width:12;stroke-linecap:round;stroke-dasharray:603.19;stroke-dashoffset:603.19;transition:stroke-dashoffset 0.8s cubic-bezier(0.22,1,0.36,1),stroke 0.4s,filter 0.4s;}
+.whoop-ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
+.whoop-ring-num{font-size:60px;font-weight:700;letter-spacing:-0.04em;color:var(--text-primary);line-height:1;font-variant-numeric:tabular-nums;}
+.whoop-ring-unit{font-size:10px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:var(--text-tertiary);margin-top:10px;}
+.whoop-ring-label{font-size:12.5px;font-weight:600;margin-top:6px;letter-spacing:-0.005em;}
+.whoop-stages{margin-bottom:22px;padding-top:22px;border-top:1px solid var(--border-soft);}
+.whoop-stages-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;}
+.whoop-stages-eyebrow{font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--text-tertiary);}
+.whoop-stages-meta{font-size:11px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;font-family:var(--font-mono);}
+.whoop-stages-bar{display:flex;height:10px;background:rgba(255,255,255,0.04);border-radius:999px;overflow:hidden;margin-bottom:12px;border:1px solid var(--border-soft);}
+.whoop-stage{height:100%;transition:width 0.7s cubic-bezier(0.22,1,0.36,1);}
+.whoop-stage-rem{background:#FFFFFF;}
+.whoop-stage-deep{background:#B8B6B0;}
+.whoop-stage-light{background:#76746E;}
+.whoop-stage-awake{background:#38362F;}
+.whoop-stages-legend{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.whoop-stages-leg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary);font-weight:500;}
+.whoop-stages-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
+.whoop-stages-dot.d-rem{background:#FFFFFF;}
+.whoop-stages-dot.d-deep{background:#B8B6B0;}
+.whoop-stages-dot.d-light{background:#76746E;}
+.whoop-stages-dot.d-awake{background:#38362F;border:1px solid var(--border);}
+.whoop-stages-num{margin-left:auto;color:var(--text-primary);font-weight:700;font-variant-numeric:tabular-nums;font-family:var(--font-mono);font-size:11px;}
+@media(max-width:480px){.whoop-stages-legend{grid-template-columns:repeat(2,1fr);}}
+.whoop-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding-top:22px;border-top:1px solid var(--border-soft);}
+.whoop-stat{background:rgba(255,255,255,0.025);border:1px solid var(--border-soft);border-radius:12px;padding:12px 10px;text-align:center;position:relative;transition:background 0.18s;}
+.whoop-stat:hover{background:rgba(255,255,255,0.05);}
+.whoop-stat-label{font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.14em;font-weight:700;margin-bottom:8px;}
+.whoop-stat-value{font-size:22px;font-weight:700;color:var(--text-primary);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-0.03em;}
+.whoop-stat-sub{font-size:10px;color:var(--text-tertiary);margin-top:5px;font-variant-numeric:tabular-nums;font-family:var(--font-mono);}
+@media(max-width:480px){.whoop-stats{grid-template-columns:repeat(2,1fr);}.whoop-stat-value{font-size:20px;}}
+.whoop-bio{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;}
+.whoop-bio-item{position:relative;display:flex;flex-direction:column;gap:4px;padding:11px 12px;background:rgba(255,255,255,0.025);border:1px solid var(--border-soft);border-radius:12px;text-align:center;transition:background 0.18s;}
+.whoop-bio-item:hover{background:rgba(255,255,255,0.05);}
+.whoop-bio-label{font-size:9.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-tertiary);}
+.whoop-bio-val{font-size:14px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums;letter-spacing:-0.01em;}
+.whoop-zone{position:absolute;top:9px;right:9px;width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.12);transition:background 0.3s,box-shadow 0.3s;}
+.whoop-zone.z-good{background:#6BE3A4;box-shadow:0 0 7px rgba(107,227,164,0.55);}
+.whoop-zone.z-norm{background:rgba(255,255,255,0.30);}
+.whoop-zone.z-warn{background:#F2C063;box-shadow:0 0 7px rgba(242,192,99,0.55);}
+.whoop-zone.z-bad{background:#FF8A8A;box-shadow:0 0 7px rgba(255,138,138,0.55);}
+.whoop-legend{display:flex;justify-content:center;flex-wrap:wrap;gap:14px;margin-top:14px;padding:10px 12px;background:rgba(255,255,255,0.02);border-radius:999px;border:1px solid var(--border-soft);}
+.whoop-legend-item{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:600;color:var(--text-tertiary);letter-spacing:0.04em;}
+.whoop-legend-item .whoop-zone{position:static;display:inline-block;}
+.whoop-verdict{margin-top:18px;padding:16px 18px;background:rgba(255,255,255,0.025);border:1px solid var(--border-soft);border-left:2px solid rgba(255,255,255,0.40);border-radius:0 12px 12px 0;}
+.whoop-verdict-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.whoop-verdict-eyebrow{font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.18em;font-weight:700;}
+.whoop-verdict-badge{font-size:9.5px;font-weight:800;padding:3px 9px;border-radius:999px;letter-spacing:0.14em;text-transform:uppercase;border:1px solid;}
+.whoop-verdict-headline{font-size:15px;font-weight:600;color:var(--text-primary);line-height:1.4;margin-bottom:12px;letter-spacing:-0.01em;}
+.whoop-verdict-reasons{font-size:12.5px;color:var(--text-secondary);line-height:1.65;}
+.whoop-verdict-avoid{font-size:12.5px;color:var(--text-secondary);line-height:1.6;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);}
+.whoop-verdict-avoid-label{color:#FF8A8A;font-weight:700;}
+.whoop-disconnect-btn{display:block;margin:16px auto 0;padding:7px 14px;background:transparent;border:1px solid transparent;color:var(--text-tertiary);font-size:11px;font-family:inherit;font-weight:500;letter-spacing:0.04em;border-radius:999px;cursor:pointer;transition:color 0.15s,border-color 0.15s;}
+.whoop-disconnect-btn:hover{color:var(--text-secondary);border-color:var(--border-soft);}
+.whoop-err{background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.28);color:#FF8A8A;padding:10px 12px;border-radius:10px;font-size:11.5px;font-family:var(--font-mono);margin-bottom:14px;}
+
+/* ═══════════════════════════════════════════
+   DAILY STACK (unchanged from original)
+═══════════════════════════════════════════ */
+.stack-card{background:var(--bg-card);border-radius:16px;padding:22px 22px 18px;backdrop-filter:blur(24px) saturate(1.2);-webkit-backdrop-filter:blur(24px) saturate(1.2);box-shadow:0 12px 40px rgba(0,0,0,0.45);}
+.stack-head{margin-bottom:12px;}
+.sf-eyebrow{font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:6px;}
+.sf-title{font-size:24px;font-weight:700;letter-spacing:-0.022em;color:var(--text-primary);line-height:1.15;margin-bottom:2px;}
+.stack-progress-text{font-family:var(--font-mono);font-size:12px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;margin-top:6px;}
+.stack-progress-track{height:5px;background:rgba(255,255,255,0.05);border-radius:999px;overflow:hidden;margin:14px 0 18px;}
+.stack-progress-fill{height:100%;width:0%;background:#FFFFFF;border-radius:999px;transition:width 0.5s cubic-bezier(0.22,1,0.36,1);box-shadow:inset 0 1px 0 rgba(255,255,255,0.4);}
+.stack-window{margin-bottom:14px;}
+.stack-window-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border-soft);}
+.stack-window-icon{font-size:16px;}
+.stack-window-title{font-size:13px;font-weight:700;color:var(--text-primary);}
+.stack-window-time{font-size:11px;color:var(--text-tertiary);font-weight:500;}
+.stack-item{display:grid;grid-template-columns:32px 1fr auto auto;gap:10px;align-items:center;padding:10px 12px;border-radius:10px;background:var(--bg-secondary);margin-bottom:6px;border:1px solid transparent;transition:background 0.2s,border-color 0.2s;}
+.stack-item:hover{background:rgba(255,255,255,0.05);}
+.stack-item.taken{background:rgba(29,158,117,0.08);}
+.stack-item.taken .stack-item-name{text-decoration:line-through;color:var(--text-tertiary);}
+@keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.4);}50%{box-shadow:0 0 0 8px rgba(239,68,68,0);}}
+.stack-item.missed{border:1px solid rgba(239,68,68,0.45);animation:pulse-red 1.5s ease-in-out infinite;}
+.stack-item.missed .stack-check{border-color:rgba(239,68,68,0.55);}
+.stack-item.taken.missed{animation:none;border-color:transparent;}
+.stack-item.taken.missed .stack-check{border-color:var(--accent);}
+.stack-check{width:28px;height:28px;border-radius:50%;border:2px solid var(--border-strong);background:var(--bg-card);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:transparent;transition:all 0.2s;flex-shrink:0;font-family:inherit;padding:0;}
+.stack-check:hover{border-color:var(--accent);}
+.stack-check.checked{background:var(--accent);border-color:var(--accent);color:white;box-shadow:0 0 12px var(--accent-glow);}
+.stack-item-body{min-width:0;}
+.stack-item-name{font-size:14px;font-weight:600;color:var(--text-primary);line-height:1.2;display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;outline:none;}
+.stack-item-name[contenteditable="true"]{outline:1px solid rgba(255,255,255,0.25);outline-offset:4px;border-radius:4px;}
+.stack-item-meta{font-size:11px;color:var(--text-tertiary);margin-top:2px;outline:none;cursor:text;}
+.stack-item-meta[contenteditable="true"]{outline:1px solid rgba(255,255,255,0.2);outline-offset:4px;border-radius:4px;color:var(--text-secondary);}
+.stack-item-meta:empty::before{content:'add notes…';color:var(--text-quaternary);font-style:italic;}
+.stack-item-tag{font-family:var(--font-mono);font-size:10px;padding:2px 7px;border-radius:99px;font-weight:600;letter-spacing:0.04em;text-transform:lowercase;}
+.stack-item-tag.tag-stack{background:var(--tag-stack-bg);color:var(--tag-stack);}
+.stack-item-tag.tag-not-ordered{background:var(--warning-bg);color:var(--text-tertiary);}
+.stack-low-btn{background:transparent;border:1px solid var(--border-strong);color:var(--text-tertiary);font-size:10px;padding:5px 9px;border-radius:6px;cursor:pointer;font-family:var(--font-mono);font-weight:600;letter-spacing:0.04em;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;transition:all 0.15s;}
+.stack-low-btn:hover{border-color:rgba(163,45,45,0.4);color:var(--warning);}
+.stack-low-btn.is-low{background:var(--warning-bg);border-color:rgba(163,45,45,0.4);color:var(--warning);}
+.stack-item-del{background:transparent;border:1px solid var(--border-strong);color:var(--text-tertiary);cursor:pointer;font-size:16px;padding:4px 10px;border-radius:6px;opacity:0.7;transition:opacity 0.15s,color 0.15s,border-color 0.15s,background 0.15s;font-family:inherit;line-height:1;min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;}
+.stack-item:hover .stack-item-del{opacity:1;}
+.stack-item-del:hover,.stack-item-del:active{color:#FF6B6B;border-color:rgba(239,68,68,0.45);background:rgba(239,68,68,0.08);opacity:1;}
+.stack-window-empty{font-size:12px;color:var(--text-quaternary);font-style:italic;padding:8px 12px;}
+.stack-ticker{display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:14px;background:rgba(0,0,0,0.28);border:1px solid rgba(255,255,255,0.04);border-radius:10px;font-size:12px;min-height:36px;}
+.stack-ticker-dot{width:8px;height:8px;border-radius:50%;background:#6BE3A4;flex-shrink:0;transition:background 0.3s;}
+.stack-ticker.status-low .stack-ticker-dot{background:#FF8A4D;}
+.stack-ticker.status-missed .stack-ticker-dot{background:#FF6B6B;animation:ticker-pulse 1.5s ease-in-out infinite;}
+@keyframes ticker-pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.5);}50%{box-shadow:0 0 0 5px rgba(239,68,68,0);}}
+.stack-ticker-label{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-tertiary);flex-shrink:0;}
+.stack-ticker-sep{color:var(--text-quaternary);flex-shrink:0;}
+.stack-ticker-msg{flex:1;font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity 0.28s;}
+.stack-ticker-msg.is-fading{opacity:0;}
+.stack-ticker-count{font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;flex-shrink:0;}
+.stack-add-wrap{margin-top:16px;padding-top:14px;border-top:1px solid var(--border-soft);}
+.stack-add-label{margin-bottom:10px;}
+.stack-add-row{display:grid;grid-template-columns:1fr 1fr 110px 90px;gap:6px;align-items:center;}
+.stack-input{font-size:13px;padding:9px 11px;border-radius:10px;border:1px solid var(--border-strong);background:var(--bg-input);color:var(--text-primary);font-family:inherit;transition:border-color 0.18s,background 0.18s;}
+.stack-input::placeholder{color:var(--text-tertiary);}
+.stack-input:focus{outline:none;border-color:rgba(255,255,255,0.40);background:var(--bg-input-focus);}
+.stack-select{cursor:pointer;}
+.stack-add-btn{font-size:13px;padding:9px 11px;border-radius:10px;border:1px solid rgba(255,255,255,0.85);background:linear-gradient(180deg,#FFFFFF 0%,#E8E5DD 100%);color:#0A0A0B;font-weight:700;cursor:pointer;font-family:inherit;transition:transform 0.12s,box-shadow 0.18s,background 0.18s;box-shadow:inset 0 1px 0 rgba(255,255,255,0.55),0 4px 14px rgba(0,0,0,0.30);}
+.stack-add-btn:hover{background:linear-gradient(180deg,#FFFFFF 0%,#F2F0EA 100%);transform:translateY(-1px);}
+.stack-add-btn:active{transform:translateY(0) scale(0.97);}
+.stack-name-wrap{position:relative;}
+.stack-search-results{position:absolute;top:calc(100% + 6px);left:0;width:max(100%,320px);background:var(--bg-dropdown);border:1px solid var(--border-strong);border-radius:12px;max-height:280px;overflow-y:auto;backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);box-shadow:0 16px 40px rgba(0,0,0,0.65);z-index:50;padding:6px;}
+.stack-search-results[hidden]{display:none;}
+.stack-result{display:flex;gap:12px;align-items:center;width:100%;padding:9px 11px;background:transparent;border:none;border-radius:8px;cursor:pointer;text-align:left;font-family:inherit;color:var(--text-secondary);transition:background 0.12s;}
+.stack-result:hover,.stack-result.is-focused{background:rgba(255,255,255,0.06);}
+.stack-result-icon{font-size:17px;flex-shrink:0;width:24px;text-align:center;}
+.stack-result-body{min-width:0;flex:1;}
+.stack-result-name{font-size:13px;font-weight:600;color:var(--text-primary);line-height:1.2;}
+.stack-result-meta{font-size:11px;color:var(--text-tertiary);margin-top:2px;}
+.attribution{text-align:center;margin-top:28px;font-family:var(--font-mono);font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-quaternary);}
+@media(max-width:600px){
+  main{padding:40px 16px 60px;}
+  .stack-card{padding:18px 16px 14px;}
+  .stack-item{grid-template-columns:28px 1fr auto;gap:8px;}
+  .stack-item .stack-low-btn{grid-column:2/4;margin-top:4px;justify-self:start;}
+  .stack-add-row{grid-template-columns:1fr 1fr;}
+  .stack-add-row .stack-add-btn{grid-column:1/-1;}
+  .stack-add-row .stack-select{grid-column:1/-1;}
+  .stack-search-results{width:100%;}
+}
+::selection{background:rgba(224,118,88,0.3);color:var(--text-primary);}
+::-webkit-scrollbar{width:10px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:999px;}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15);}
+</style>
+</head>
+<body>
+<main>
+
+  <!-- ═══════ WHOOP CARD ═══════ -->
+  <div class="whoop-section">
+    <div class="section-title">Whoop</div>
+    <div class="whoop-card">
+
+      <!-- Disconnected state -->
+      <div id="whoopDisconnected" class="whoop-disconnected">
+        <div class="whoop-brand">
+          <span class="whoop-brand-mark">W</span>
+          <span class="whoop-brand-text">WHOOP</span>
+        </div>
+        <div class="whoop-disconnected-title">Not connected</div>
+        <div class="whoop-disconnected-sub">Link your account to see live recovery, sleep, and strain.</div>
+        <button id="whoopConnectBtn" class="whoop-connect-btn" type="button">
+          Connect WHOOP
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 5 20 12 13 19"/></svg>
+        </button>
+        <div id="whoopAuthStatus" class="whoop-auth-status"></div>
+      </div>
+
+      <!-- Connected state -->
+      <div id="whoopConnected" class="whoop-connected" style="display:none">
+        <div class="whoop-header">
+          <div class="whoop-brand">
+            <span class="whoop-brand-mark">W</span>
+            <span class="whoop-brand-text">WHOOP</span>
+            <span class="whoop-live-tag"><span class="whoop-live-dot"></span>live</span>
+          </div>
+          <div class="whoop-header-right">
+            <span id="whoopUpdated" class="whoop-updated">loading…</span>
+            <button id="whoopRefreshBtn" class="whoop-refresh-btn" title="Refresh" aria-label="Refresh">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M20.49 15A9 9 0 1 1 5.64 5.64L23 10"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div id="whoopCalibrating" class="whoop-calibrating" style="display:none">
+          <span class="whoop-cal-dot"></span>
+          WHOOP is still calibrating — early scores may shift over the next few weeks
+        </div>
+        <div id="whoopErr" class="whoop-err" style="display:none"></div>
+
+        <!-- Recovery ring -->
+        <div class="whoop-ring-wrap">
+          <svg class="whoop-ring" viewBox="0 0 220 220" aria-hidden="true">
+            <circle class="whoop-ring-track" cx="110" cy="110" r="96"/>
+            <circle class="whoop-ring-fill"  cx="110" cy="110" r="96" id="whoopRingFill"/>
+          </svg>
+          <div class="whoop-ring-center">
+            <div id="whoopRecoveryScore" class="whoop-ring-num">—</div>
+            <div class="whoop-ring-unit">recovery</div>
+            <div id="whoopRecoveryLabel" class="whoop-ring-label">—</div>
+          </div>
+        </div>
+
+        <!-- Sleep stages -->
+        <div id="whoopStages" class="whoop-stages" style="display:none">
+          <div class="whoop-stages-head">
+            <span class="whoop-stages-eyebrow">Sleep stages</span>
+            <span class="whoop-stages-meta" id="whoopStagesMeta"></span>
+          </div>
+          <div class="whoop-stages-bar">
+            <div class="whoop-stage whoop-stage-rem"   id="whoopStageRem"   style="width:0%"></div>
+            <div class="whoop-stage whoop-stage-deep"  id="whoopStageDeep"  style="width:0%"></div>
+            <div class="whoop-stage whoop-stage-light" id="whoopStageLight" style="width:0%"></div>
+            <div class="whoop-stage whoop-stage-awake" id="whoopStageAwake" style="width:0%"></div>
+          </div>
+          <div class="whoop-stages-legend">
+            <div class="whoop-stages-leg"><span class="whoop-stages-dot d-rem"></span>REM <span id="whoopStageRemTxt" class="whoop-stages-num">—</span></div>
+            <div class="whoop-stages-leg"><span class="whoop-stages-dot d-deep"></span>Deep <span id="whoopStageDeepTxt" class="whoop-stages-num">—</span></div>
+            <div class="whoop-stages-leg"><span class="whoop-stages-dot d-light"></span>Light <span id="whoopStageLightTxt" class="whoop-stages-num">—</span></div>
+            <div class="whoop-stages-leg"><span class="whoop-stages-dot d-awake"></span>Awake <span id="whoopStageAwakeTxt" class="whoop-stages-num">—</span></div>
+          </div>
+        </div>
+
+        <!-- Stats grid -->
+        <div class="whoop-stats">
+          <div class="whoop-stat">
+            <span class="whoop-zone" id="whoopZoneSleep"></span>
+            <div class="whoop-stat-label">Sleep</div>
+            <div class="whoop-stat-value" id="whoopSleepScore">—</div>
+            <div class="whoop-stat-sub"   id="whoopSleepDuration">—</div>
+          </div>
+          <div class="whoop-stat">
+            <span class="whoop-zone" id="whoopZoneStrain"></span>
+            <div class="whoop-stat-label">Strain</div>
+            <div class="whoop-stat-value" id="whoopStrain">—</div>
+            <div class="whoop-stat-sub">today</div>
+          </div>
+          <div class="whoop-stat">
+            <span class="whoop-zone" id="whoopZoneHrv"></span>
+            <div class="whoop-stat-label">HRV</div>
+            <div class="whoop-stat-value" id="whoopHrv">—</div>
+            <div class="whoop-stat-sub">ms</div>
+          </div>
+          <div class="whoop-stat">
+            <span class="whoop-zone" id="whoopZoneRhr"></span>
+            <div class="whoop-stat-label">RHR</div>
+            <div class="whoop-stat-value" id="whoopRhr">—</div>
+            <div class="whoop-stat-sub">bpm</div>
+          </div>
+        </div>
+
+        <!-- Biomarker strip -->
+        <div id="whoopBio" class="whoop-bio" style="display:none">
+          <div class="whoop-bio-item">
+            <span class="whoop-zone" id="whoopZoneSkin"></span>
+            <span class="whoop-bio-label">Skin temp</span>
+            <span class="whoop-bio-val" id="whoopSkinTemp">—</span>
+          </div>
+          <div class="whoop-bio-item">
+            <span class="whoop-zone" id="whoopZoneSpo2"></span>
+            <span class="whoop-bio-label">Blood O₂</span>
+            <span class="whoop-bio-val" id="whoopSpo2">—</span>
+          </div>
+          <div class="whoop-bio-item">
+            <span class="whoop-zone" id="whoopZoneResp"></span>
+            <span class="whoop-bio-label">Resp rate</span>
+            <span class="whoop-bio-val" id="whoopResp">—</span>
+          </div>
+        </div>
+
+        <!-- Zone legend -->
+        <div class="whoop-legend">
+          <span class="whoop-legend-item"><span class="whoop-zone z-good"></span>Good</span>
+          <span class="whoop-legend-item"><span class="whoop-zone z-norm"></span>Normal</span>
+          <span class="whoop-legend-item"><span class="whoop-zone z-warn"></span>Watch</span>
+          <span class="whoop-legend-item"><span class="whoop-zone z-bad"></span>High / Low</span>
+        </div>
+
+        <!-- Today's call -->
+        <div id="whoopVerdict" class="whoop-verdict" style="display:none">
+          <div class="whoop-verdict-head">
+            <span class="whoop-verdict-eyebrow">Today's call</span>
+            <span id="whoopVerdictBadge" class="whoop-verdict-badge"></span>
+          </div>
+          <div id="whoopVerdictHeadline" class="whoop-verdict-headline"></div>
+          <div id="whoopVerdictReasons"  class="whoop-verdict-reasons"></div>
+          <div id="whoopVerdictAvoid"    class="whoop-verdict-avoid" style="display:none">
+            <span class="whoop-verdict-avoid-label">Avoid today:</span>
+            <span id="whoopVerdictAvoidText"></span>
+          </div>
+        </div>
+
+        <button id="whoopDisconnectBtn" class="whoop-disconnect-btn" type="button">Disconnect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ DAILY STACK ═══════ -->
+  <div class="section-title">Daily Stack</div>
+  <div class="stack-card">
+    <div class="stack-ticker" id="stackTicker">
+      <span class="stack-ticker-dot"></span>
+      <span class="stack-ticker-label">STACK</span>
+      <span class="stack-ticker-sep">·</span>
+      <span class="stack-ticker-msg" id="stackTickerMsg">All caught up — keep it rolling</span>
+      <span class="stack-ticker-count" id="stackTickerCount">0/0</span>
+    </div>
+    <div class="stack-head">
+      <div class="sf-eyebrow">Daily stack</div>
+      <div class="sf-title">Tap each as you take it</div>
+      <div class="stack-progress-text" id="stackProgressText">— / — taken today · resets at 6 AM</div>
+    </div>
+    <div class="stack-progress-track">
+      <div id="stackProgressBar" class="stack-progress-fill"></div>
+    </div>
+    <div id="stackGroups"></div>
+    <div class="stack-add-wrap">
+      <div class="sf-eyebrow stack-add-label">Add to stack</div>
+      <div class="stack-add-row">
+        <div class="stack-name-wrap">
+          <input id="stackAddName" type="text" placeholder="Name (e.g. B-complex)" class="stack-input" autocomplete="off" spellcheck="false"/>
+          <div id="stackSearchResults" class="stack-search-results" hidden></div>
+        </div>
+        <input id="stackAddDose" type="text" placeholder="Dose (e.g. 1 cap)" class="stack-input"/>
+        <select id="stackAddWindow" class="stack-input stack-select">
+          <option value="morning">Morning</option>
+          <option value="lunch">Lunch</option>
+          <option value="evening">Evening</option>
+          <option value="anytime">Anytime</option>
+        </select>
+        <button id="stackAddBtn" class="stack-add-btn">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="attribution">// editable template · data stays in your browser · syncs via supabase</div>
+</main>
+
+<!-- ═══════════════════════════════════════
+     WHOOP JS
+═══════════════════════════════════════ -->
+<script>
+(function () {
+  'use strict';
+
+  // ── Replace with your actual Client ID from developer.whoop.com ──
+  const CLIENT_ID = 'PASTE-YOUR-WHOOP-CLIENT-ID-HERE';
+  const REDIRECT   = window.location.origin + '/api/whoop-callback';
+  const SCOPES     = 'read:recovery read:sleep read:workout read:cycles read:profile read:body_measurement offline';
+  const TOKEN_KEY  = 'whoop_tokens_v1';
+
+  function loadTokens() { try { return JSON.parse(localStorage.getItem(TOKEN_KEY)); } catch { return null; } }
+  function saveTokens(t) { try { localStorage.setItem(TOKEN_KEY, JSON.stringify(t)); } catch {} }
+  function clearTokens() { try { localStorage.removeItem(TOKEN_KEY); } catch {} }
+
+  // Parse tokens from URL hash after OAuth redirect
+  if (location.hash && location.hash.includes('whoop_access')) {
+    const h = new URLSearchParams(location.hash.slice(1));
+    const access = h.get('whoop_access'), refresh = h.get('whoop_refresh');
+    const expires = Number(h.get('whoop_expires')) || (Date.now() + 3500 * 1000);
+    if (access) {
+      saveTokens({ access, refresh, expires });
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  }
+
+  const dEl   = document.getElementById('whoopDisconnected');
+  const cEl   = document.getElementById('whoopConnected');
+  const errEl = document.getElementById('whoopErr');
+
+  document.getElementById('whoopConnectBtn').addEventListener('click', () => {
+    const url = 'https://api.prod.whoop.com/oauth/oauth2/auth'
+      + '?client_id='     + encodeURIComponent(CLIENT_ID)
+      + '&redirect_uri='  + encodeURIComponent(REDIRECT)
+      + '&response_type=code'
+      + '&scope='         + encodeURIComponent(SCOPES)
+      + '&state='         + Math.random().toString(36).slice(2);
+    location.href = url;
+  });
+
+  document.getElementById('whoopDisconnectBtn').addEventListener('click', () => {
+    clearTokens(); render();
+  });
+
+  document.getElementById('whoopRefreshBtn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.style.transform = 'rotate(180deg)';
+    try { await loadData(); } finally {
+      setTimeout(() => { btn.style.transform = ''; }, 600);
+    }
+  });
+
+  function showErr(m) { errEl.textContent = m || ''; errEl.style.display = m ? 'block' : 'none'; }
+
+  async function refreshToken(t) {
+    if (!t.refresh) return null;
+    try {
+      const r = await fetch('/api/whoop-refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: t.refresh })
+      });
+      const j = await r.json();
+      if (j.access_token) {
+        const next = { access: j.access_token, refresh: j.refresh_token || t.refresh, expires: Date.now() + (j.expires_in || 3500) * 1000 };
+        saveTokens(next);
+        return next;
+      }
+    } catch {}
+    return null;
+  }
+
+  async function whoopFetch(path, t) {
+    const [p, qs] = path.split('?');
+    const params = new URLSearchParams(qs || '');
+    params.set('path', p);
+    const r = await fetch('/api/whoop-data?' + params.toString(), {
+      headers: { Authorization: 'Bearer ' + t.access }
+    });
+    if (r.status === 401) {
+      const n = await refreshToken(t);
+      if (n) return whoopFetch(path, n);
+      throw new Error('unauthorized');
+    }
+    if (!r.ok) throw new Error('WHOOP ' + r.status + ': ' + await r.text());
+    return r.json();
+  }
+
+  function fmtMins(ms) {
+    const m = Math.round(ms / 60000);
+    return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm';
+  }
+
+  // Recovery zone classification
+  function recoveryZone(pct) {
+    if (pct >= 67) return { label: 'High recovery',   color: '#6BE3A4', zClass: 'z-good', badge: { text: 'GREEN', bg: 'rgba(107,227,164,0.10)', border: 'rgba(107,227,164,0.35)', color: '#6BE3A4' } };
+    if (pct >= 34) return { label: 'Moderate',        color: '#F2C063', zClass: 'z-norm', badge: { text: 'YELLOW', bg: 'rgba(242,192,99,0.10)', border: 'rgba(242,192,99,0.35)', color: '#F2C063' } };
+    return             { label: 'Low recovery',       color: '#FF8A8A', zClass: 'z-bad',  badge: { text: 'RED',    bg: 'rgba(255,138,138,0.10)', border: 'rgba(255,138,138,0.35)', color: '#FF8A8A' } };
+  }
+
+  function setZone(el, cls) {
+    if (!el) return;
+    el.classList.remove('z-good','z-norm','z-warn','z-bad');
+    if (cls) el.classList.add(cls);
+  }
+
+  function buildVerdict(recovery, sleepPct, strain, hrv) {
+    const zone = recoveryZone(recovery);
+    const el = document.getElementById('whoopVerdict');
+    const badge = document.getElementById('whoopVerdictBadge');
+    const headline = document.getElementById('whoopVerdictHeadline');
+    const reasons = document.getElementById('whoopVerdictReasons');
+    const avoidEl = document.getElementById('whoopVerdictAvoid');
+    const avoidText = document.getElementById('whoopVerdictAvoidText');
+
+    badge.textContent = zone.badge.text;
+    badge.style.background = zone.badge.bg;
+    badge.style.borderColor = zone.badge.border;
+    badge.style.color = zone.badge.color;
+
+    // Set verdict border colour
+    el.style.borderLeftColor = zone.color;
+
+    let hl, r, avoid = '';
+    if (recovery >= 67) {
+      hl = strain > 14 ? 'Great day to push hard.' : 'Strong recovery — load up if you want.';
+      r = `Recovery at ${Math.round(recovery)}% — your body is primed. `;
+      if (sleepPct >= 85) r += 'Sleep performance was excellent. ';
+      if (hrv) r += `HRV of ${Math.round(hrv)} ms is in a strong range.`;
+    } else if (recovery >= 34) {
+      hl = 'Moderate day — train smart, not max.';
+      r = `Recovery at ${Math.round(recovery)}% — enough to train, not enough to go all-out. `;
+      if (sleepPct < 70) r += 'Sleep performance was below par — prioritise rest tonight. ';
+      avoid = 'max-effort lifts, late-night caffeine';
+    } else {
+      hl = 'Low recovery — rest or go very easy today.';
+      r = `Recovery at ${Math.round(recovery)}% — your body needs a break. `;
+      if (sleepPct < 60) r += 'Poor sleep performance compounded the deficit. ';
+      avoid = 'high-intensity training, alcohol, late nights';
+    }
+
+    headline.textContent = hl;
+    reasons.textContent = r.trim();
+    if (avoid) {
+      avoidEl.style.display = '';
+      avoidText.textContent = avoid;
+    } else {
+      avoidEl.style.display = 'none';
+    }
+    el.style.display = '';
+  }
+
+  async function loadData() {
+    let t = loadTokens();
+    if (!t) return;
+    if (t.expires && Date.now() > t.expires - 60000) {
+      const n = await refreshToken(t);
+      if (n) t = n;
+    }
+    showErr('');
+    try {
+      const [rec, sleep, cycle] = await Promise.all([
+        whoopFetch('/recovery?limit=1', t).catch(e => { console.error('[whoop] /recovery:', e.message); return null; }),
+        whoopFetch('/activity/sleep?limit=1', t).catch(e => { console.error('[whoop] /sleep:', e.message); return null; }),
+        whoopFetch('/cycle?limit=1', t).catch(e => { console.error('[whoop] /cycle:', e.message); return null; }),
+      ]);
+
+      // Ring circumference for r=96: 2π×96 ≈ 603.19
+      const C = 603.19;
+      const ringFill = document.getElementById('whoopRingFill');
+
+      const r = rec && rec.records && rec.records[0] && rec.records[0].score;
+      if (r) {
+        const recPct  = Math.round(r.recovery_score || 0);
+        const hrv     = Math.round(r.hrv_rmssd_milli || 0);
+        const rhr     = Math.round(r.resting_heart_rate || 0);
+        const zone    = recoveryZone(recPct);
+
+        document.getElementById('whoopRecoveryScore').textContent = recPct + '%';
+        document.getElementById('whoopRecoveryScore').style.color = zone.color;
+        document.getElementById('whoopRecoveryLabel').textContent = zone.label;
+        document.getElementById('whoopRecoveryLabel').style.color = zone.color;
+
+        ringFill.style.stroke         = zone.color;
+        ringFill.style.filter         = `drop-shadow(0 0 18px ${zone.color}55)`;
+        ringFill.style.strokeDashoffset = C * (1 - recPct / 100);
+
+        document.getElementById('whoopHrv').textContent = hrv || '—';
+        document.getElementById('whoopRhr').textContent = rhr || '—';
+        setZone(document.getElementById('whoopZoneHrv'), hrv > 60 ? 'z-good' : hrv > 40 ? 'z-norm' : 'z-warn');
+        setZone(document.getElementById('whoopZoneRhr'), rhr < 55 ? 'z-good' : rhr < 70 ? 'z-norm' : 'z-warn');
+
+        // Skin temp / SpO2 / resp from recovery record if available
+        if (r.skin_temp_celsius != null) {
+          document.getElementById('whoopSkinTemp').textContent = r.skin_temp_celsius.toFixed(1) + '°C';
+          document.getElementById('whoopBio').style.display = '';
+        }
+        if (r.spo2_percentage != null) {
+          const spo2 = r.spo2_percentage.toFixed(1);
+          document.getElementById('whoopSpo2').textContent = spo2 + '%';
+          setZone(document.getElementById('whoopZoneSpo2'), spo2 >= 95 ? 'z-good' : spo2 >= 90 ? 'z-warn' : 'z-bad');
+        }
+        if (r.respiratory_rate != null) {
+          document.getElementById('whoopResp').textContent = r.respiratory_rate.toFixed(1);
+          setZone(document.getElementById('whoopZoneResp'), r.respiratory_rate < 18 ? 'z-good' : r.respiratory_rate < 20 ? 'z-norm' : 'z-warn');
+        }
+
+        // Verdict (partial — we'll update once we have sleep data too)
+        const s = sleep && sleep.records && sleep.records[0];
+        const sleepPct = s && s.score ? (s.score.sleep_performance_percentage || 0) : 0;
+        const cScore = cycle && cycle.records && cycle.records[0] && cycle.records[0].score;
+        buildVerdict(recPct, sleepPct, cScore ? cScore.strain : 0, hrv);
+      }
+
+      // Sleep
+      const s = sleep && sleep.records && sleep.records[0];
+      if (s && s.score && s.score.stage_summary) {
+        const ss    = s.score.stage_summary;
+        const total = (ss.total_in_bed_time_milli || 0);
+        const awake = (ss.total_awake_time_milli  || 0);
+        const rem   = (ss.total_rem_sleep_time_milli   || 0);
+        const deep  = (ss.total_slow_wave_sleep_time_milli || 0);
+        const light = (ss.total_light_sleep_time_milli || 0);
+        const asleep = total - awake;
+        const perfPct = Math.round(s.score.sleep_performance_percentage || 0);
+
+        document.getElementById('whoopSleepScore').textContent    = perfPct + '%';
+        document.getElementById('whoopSleepDuration').textContent = fmtMins(asleep);
+        setZone(document.getElementById('whoopZoneSleep'), perfPct >= 85 ? 'z-good' : perfPct >= 70 ? 'z-norm' : 'z-warn');
+
+        if (total > 0) {
+          document.getElementById('whoopStages').style.display = '';
+          document.getElementById('whoopStagesMeta').textContent = fmtMins(asleep) + ' total';
+          const remPct   = rem   / total * 100;
+          const deepPct  = deep  / total * 100;
+          const lightPct = light / total * 100;
+          const awakePct = awake / total * 100;
+          document.getElementById('whoopStageRem').style.width   = remPct + '%';
+          document.getElementById('whoopStageDeep').style.width  = deepPct + '%';
+          document.getElementById('whoopStageLight').style.width = lightPct + '%';
+          document.getElementById('whoopStageAwake').style.width = awakePct + '%';
+          document.getElementById('whoopStageRemTxt').textContent   = fmtMins(rem);
+          document.getElementById('whoopStageDeepTxt').textContent  = fmtMins(deep);
+          document.getElementById('whoopStageLightTxt').textContent = fmtMins(light);
+          document.getElementById('whoopStageAwakeTxt').textContent = fmtMins(awake);
+        }
+
+        // Resp rate from sleep if not in recovery record
+        if (s.score.respiratory_rate != null && document.getElementById('whoopResp').textContent === '—') {
+          document.getElementById('whoopResp').textContent = s.score.respiratory_rate.toFixed(1);
+          document.getElementById('whoopBio').style.display = '';
+        }
+      }
+
+      // Strain
+      const c = cycle && cycle.records && cycle.records[0] && cycle.records[0].score;
+      if (c && c.strain != null) {
+        document.getElementById('whoopStrain').textContent = c.strain.toFixed(1);
+        setZone(document.getElementById('whoopZoneStrain'), c.strain >= 14 ? 'z-warn' : c.strain >= 10 ? 'z-norm' : 'z-good');
+      }
+
+      // Updated timestamp
+      document.getElementById('whoopUpdated').textContent =
+        'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    } catch (e) { showErr(e.message || String(e)); }
+  }
+
+  function render() {
+    const t = loadTokens();
+    if (t && t.access) {
+      dEl.style.display = 'none';
+      cEl.style.display = '';
+      loadData();
+    } else {
+      dEl.style.display = '';
+      cEl.style.display = 'none';
+    }
+  }
+
+  render();
+})();
+</script>
+
+<!-- ═══════════════════════════════════════
+     DAILY STACK JS (unchanged from original)
+═══════════════════════════════════════ -->
+<script>
+(() => {
+  'use strict';
+  const storeGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+  const storeSet = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+  function getActiveDate() {
+    const now = new Date();
+    if (now.getHours() < 6) now.setDate(now.getDate() - 1);
+    return now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+  }
+  const TEMPLATE_VERSION = 5;
+  const STACK_DEFAULTS = [
+    { id:'m1', name:'XXXXX - Supplement of choice', dose:'', window:'morning', note:'how much MG, meal times, any data below', tag:null,    ordered:true  },
+    { id:'m2', name:'XXXXX - Supplement of choice', dose:'', window:'morning', note:'how much MG, meal times, any data below', tag:'stack', ordered:true  },
+    { id:'m3', name:'XXXXX - Supplement of choice', dose:'', window:'morning', note:'how much MG, meal times, any data below', tag:null,    ordered:true  },
+    { id:'l1', name:'XXXXX - Supplement of choice', dose:'', window:'lunch',   note:'how much MG, meal times, any data below', tag:null,    ordered:true  },
+    { id:'l2', name:'XXXXX - Supplement of choice', dose:'', window:'lunch',   note:'how much MG, meal times, any data below', tag:null,    ordered:true  },
+    { id:'e1', name:'XXXXX - Supplement of choice', dose:'', window:'evening', note:'how much MG, meal times, any data below', tag:null,    ordered:true  },
+    { id:'e2', name:'XXXXX - Supplement of choice', dose:'', window:'evening', note:'how much MG, meal times, any data below', tag:'not-ordered', ordered:false },
+    { id:'e3', name:'XXXXX - Supplement of choice', dose:'', window:'evening', note:'how much MG, meal times, any data below', tag:null,    ordered:true  },
+  ];
+  const STACK_WINDOWS = [
+    { key:'morning', icon:'🌅', title:'Morning', time:'7–10 AM',       cutoffHour:10   },
+    { key:'lunch',   icon:'🍽️', title:'Lunch',   time:'12–2 PM',      cutoffHour:14   },
+    { key:'evening', icon:'🌙', title:'Evening', time:'9–11 PM',       cutoffHour:23   },
+    { key:'anytime', icon:'⏱️', title:'Anytime', time:'No fixed window',cutoffHour:null },
+  ];
+  const SUPPLEMENT_DB = [
+    { name:'Creatine monohydrate',   dose:'5g',          window:'anytime', note:'Daily — consistency matters more than timing',   icon:'🏋️', aliases:['creatine'] },
+    { name:'Beta-alanine',           dose:'2–5g',         window:'morning', note:'Pre-workout — split doses to avoid tingles',     icon:'🏋️', aliases:['beta alanine'] },
+    { name:'L-citrulline',           dose:'6–8g',         window:'morning', note:'~30 min pre-workout for pump',                   icon:'🏋️', aliases:['citrulline'] },
+    { name:'BCAAs',                  dose:'5–10g',        window:'anytime', note:'Around workout window',                          icon:'🏋️', aliases:['bcaa'] },
+    { name:'Whey protein',           dose:'25–40g',       window:'anytime', note:'Post-workout or to hit daily target',            icon:'🥤', aliases:['whey'] },
+    { name:'Casein protein',         dose:'25–40g',       window:'evening', note:'Before bed for slow overnight aminos',           icon:'🥤', aliases:['casein'] },
+    { name:'L-carnitine',            dose:'1–2g',         window:'morning', note:'With carbs for best uptake',                     icon:'🏋️', aliases:['carnitine'] },
+    { name:'Acetyl-L-carnitine',     dose:'500mg–2g',     window:'morning', note:'Cognitive variant — crosses BBB',                icon:'🧠', aliases:['alcar'] },
+    { name:'Glutamine',              dose:'5g',           window:'anytime', note:'Recovery — post-workout or before bed',          icon:'🏋️', aliases:['l-glutamine'] },
+    { name:'Vitamin D3',             dose:'2000–5000 IU', window:'lunch',   note:'Fat-soluble — take with biggest meal',           icon:'☀️', aliases:['vit d','vitamin d','d3'] },
+    { name:'Vitamin K2 (MK-7)',      dose:'100–200 mcg',  window:'lunch',   note:'Pairs with D3 — same meal',                     icon:'💊', aliases:['vit k','k2','mk7'] },
+    { name:'Vitamin C',              dose:'500–1000mg',   window:'morning', note:'Water-soluble — split if over 500mg',            icon:'🍊', aliases:['vit c','ascorbic acid'] },
+    { name:'Vitamin B12',            dose:'500–1000mcg',  window:'morning', note:'Methylcobalamin form preferred',                 icon:'⚡', aliases:['b12','methylcobalamin'] },
+    { name:'B-complex',              dose:'1 cap',        window:'morning', note:'All B vitamins — energy',                        icon:'⚡', aliases:['b complex','b vitamins'] },
+    { name:'Magnesium glycinate',    dose:'200–400mg',    window:'evening', note:'30–60 min before bed — sleep helper',            icon:'🌙', aliases:['magnesium','mag glycinate'] },
+    { name:'Magnesium L-threonate',  dose:'144mg elemental',window:'evening',note:'Cognitive variant — crosses BBB',               icon:'🧠', aliases:['magtein','threonate'] },
+    { name:'Zinc',                   dose:'15–30mg',      window:'evening', note:'With food — not with calcium or iron',           icon:'💊', aliases:['zinc'] },
+    { name:'Omega-3 (Fish oil)',     dose:'2–3g EPA+DHA', window:'lunch',   note:'With biggest fatty meal',                        icon:'🐟', aliases:['omega 3','fish oil','epa','dha'] },
+    { name:'L-theanine',             dose:'100–200mg',    window:'morning', note:'Stacks with caffeine 2:1',                       icon:'🧠', aliases:['theanine'] },
+    { name:'Rhodiola rosea',         dose:'200–400mg',    window:'morning', note:'Adaptogen — energy and stress',                  icon:'🌿', aliases:['rhodiola'] },
+    { name:"Lion's mane",            dose:'500–1000mg',   window:'morning', note:'Cognitive support — daily',                     icon:'🍄', aliases:['lions mane'] },
+    { name:'Bacopa monnieri',        dose:'300–600mg',    window:'morning', note:'With fat — long-term memory',                   icon:'🌿', aliases:['bacopa'] },
+    { name:'Alpha-GPC',              dose:'300–600mg',    window:'morning', note:'Choline — focus and learning',                  icon:'🧠', aliases:['alpha gpc'] },
+    { name:'NAC',                    dose:'600–1800mg',   window:'morning', note:'Glutathione precursor — split doses',           icon:'💊', aliases:['nac'] },
+    { name:'Melatonin',              dose:'0.3–3mg',      window:'evening', note:'30–60 min before bed — start low',              icon:'🌙', aliases:['melatonin'] },
+    { name:'Glycine',                dose:'3g',           window:'evening', note:'Body temp drop = better sleep onset',            icon:'🌙', aliases:['glycine'] },
+    { name:'Ashwagandha',            dose:'300–600mg',    window:'evening', note:'KSM-66 form — stress and cortisol',             icon:'🌿', aliases:['ashwagandha','ksm-66'] },
+    { name:'Probiotics',             dose:'10–50 billion CFU',window:'morning',note:'Empty stomach or with food',                 icon:'🦠', aliases:['probiotic'] },
+    { name:'Curcumin',               dose:'500–1000mg',   window:'lunch',   note:'With black pepper + fat',                       icon:'🌿', aliases:['curcumin','turmeric'] },
+    { name:'CoQ10 / Ubiquinol',      dose:'100–200mg',    window:'lunch',   note:'Fat-soluble — with biggest meal',              icon:'💊', aliases:['coq10','ubiquinol'] },
+    { name:'Collagen peptides',      dose:'10–20g',       window:'anytime', note:'With vitamin C for synthesis',                  icon:'💅', aliases:['collagen'] },
+    { name:'Tongkat ali',            dose:'200–400mg',    window:'morning', note:'Cycle 8 weeks on/off',                          icon:'🌿', aliases:['tongkat','longjack'] },
+    { name:'Fadogia agrestis',       dose:'600mg',        window:'morning', note:'Cycle 8 weeks on/off',                          icon:'🌿', aliases:['fadogia'] },
+    { name:'Cordyceps',              dose:'1–3g',         window:'morning', note:'Energy and endurance',                          icon:'🍄', aliases:['cordyceps'] },
+    { name:'Reishi',                 dose:'1–2g',         window:'evening', note:'Calming adaptogen',                             icon:'🍄', aliases:['reishi'] },
+  ];
+
+  let todayKey = `stack:taken:${getActiveDate()}`;
+  function getItems() {
+    const v = storeGet('stack:version'), s = storeGet('stack:items');
+    if (!s || !Array.isArray(s) || !s.length || v !== TEMPLATE_VERSION) {
+      const f = JSON.parse(JSON.stringify(STACK_DEFAULTS)); storeSet('stack:items',f); storeSet('stack:version',TEMPLATE_VERSION); return f;
+    } return s;
+  }
+  function setItems(i) { storeSet('stack:items',i); }
+  function getTaken() { return storeGet(todayKey)||{}; }
+  function setTaken(m) { storeSet(todayKey,m); }
+  function getLow() { return storeGet('stack:low')||[]; }
+  function setLow(a) { storeSet('stack:low',a); }
+  function toggleTaken(id) { const t=getTaken(); if(t[id]) delete t[id]; else t[id]=Date.now(); setTaken(t); render(); }
+  function toggleLow(id) { const l=getLow(); if(l.includes(id)) setLow(l.filter(x=>x!==id)); else { l.push(id); setLow(l); } render(); }
+  function deleteItem(id) { setItems(getItems().filter(i=>i.id!==id)); const t=getTaken(); delete t[id]; setTaken(t); setLow(getLow().filter(x=>x!==id)); render(); }
+  function addItem(name,dose,wk,note='') {
+    const v=String(name||'').trim(); if(!v) return;
+    const items=getItems(), id='c_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    items.push({id,name:v,dose:String(dose||'').trim(),window:['morning','lunch','evening','anytime'].includes(wk)?wk:'anytime',note:String(note||'').trim(),tag:null,ordered:true});
+    setItems(items); render();
+  }
+  function updateItem(id,field,val) { const i=getItems(), it=i.find(x=>x.id===id); if(!it) return; it[field]=val; setItems(i); }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function metaText(item) { return [item.dose,item.note].filter(Boolean).join(' · '); }
+
+  function render() {
+    const items=getItems(), taken=getTaken(), low=getLow();
+    const takenCount=items.filter(i=>taken[i.id]).length;
+    document.getElementById('stackProgressText').textContent=`${takenCount} / ${items.length} taken today · resets at 6 AM`;
+    document.getElementById('stackProgressBar').style.width=(items.length?takenCount/items.length*100:0)+'%';
+    const groupsEl=document.getElementById('stackGroups'); groupsEl.innerHTML='';
+    const now=new Date(), nowHour=now.getHours()+now.getMinutes()/60;
+    STACK_WINDOWS.forEach(win => {
+      const winItems=items.filter(i=>(i.window||'anytime')===win.key); if(!winItems.length) return;
+      const group=document.createElement('div'); group.className='stack-window';
+      group.innerHTML=`<div class="stack-window-header"><span class="stack-window-icon">${win.icon}</span><span class="stack-window-title">${win.title}</span><span class="stack-window-time">${win.time}</span></div>`;
+      const isPast=win.cutoffHour!==null&&nowHour>win.cutoffHour;
+      winItems.forEach(item => {
+        const isTaken=!!taken[item.id], isLow=low.includes(item.id), isMissed=!isTaken&&isPast;
+        const row=document.createElement('div');
+        row.className='stack-item'+(isTaken?' taken':'')+(isMissed?' missed':'');
+        let tag='';
+        if(item.tag==='stack') tag='<span class="stack-item-tag tag-stack">stack</span>';
+        else if(item.tag==='not-ordered') tag='<span class="stack-item-tag tag-not-ordered">not ordered</span>';
+        row.innerHTML=`
+          <button class="stack-check ${isTaken?'checked':''}" data-action="toggle" data-id="${item.id}" aria-label="Mark taken">${isTaken?'✓':''}</button>
+          <div class="stack-item-body">
+            <div class="stack-item-name" data-edit="name" data-id="${item.id}"><span class="stack-item-name-text">${escapeHtml(item.name)}</span>${tag}</div>
+            <div class="stack-item-meta" data-edit="meta" data-id="${item.id}">${escapeHtml(metaText(item))}</div>
+          </div>
+          <button class="stack-low-btn ${isLow?'is-low':''}" data-action="low" data-id="${item.id}">↓ Running low</button>
+          <button class="stack-item-del" data-action="del" data-id="${item.id}" aria-label="Delete">×</button>`;
+        group.appendChild(row);
+      });
+      groupsEl.appendChild(group);
+    });
+    if(!groupsEl.children.length) groupsEl.innerHTML='<div class="stack-window-empty">No items yet — add one below.</div>';
+    renderTicker();
+  }
+
+  let tickerIdx=0, tickerInterval=null, cachedIssues=[];
+  function getIssues() {
+    const items=getItems(),taken=getTaken(),low=getLow(),now=new Date(),h=now.getHours()+now.getMinutes()/60;
+    const missed=[],lowList=[];
+    items.forEach(item=>{
+      const win=STACK_WINDOWS.find(w=>w.key===(item.window||'anytime'));
+      if(win&&win.cutoffHour!==null&&h>win.cutoffHour&&!taken[item.id]) missed.push({type:'missed',text:`${item.name} — missed ${win.title.toLowerCase()} dose`});
+      if(low.includes(item.id)) lowList.push({type:'low',text:`${item.name} — running low, reorder soon`});
+    });
+    return [...missed,...lowList];
+  }
+  function renderTicker() {
+    const issues=getIssues(),tickerEl=document.getElementById('stackTicker'),msgEl=document.getElementById('stackTickerMsg'),countEl=document.getElementById('stackTickerCount');
+    cachedIssues=issues;
+    if(!issues.length){msgEl.textContent='All caught up — keep it rolling';tickerEl.classList.remove('status-low','status-missed');countEl.textContent='0/'+getItems().length;tickerIdx=0;return;}
+    tickerEl.classList.remove('status-low','status-missed');
+    tickerEl.classList.add(issues.some(i=>i.type==='missed')?'status-missed':'status-low');
+    if(tickerIdx>=issues.length) tickerIdx=0;
+    msgEl.textContent=issues[tickerIdx].text;
+    countEl.textContent=issues.length+'/'+getItems().length;
+  }
+  function cycleTicker(){if(cachedIssues.length<=1){renderTicker();return;}const m=document.getElementById('stackTickerMsg');m.classList.add('is-fading');setTimeout(()=>{tickerIdx++;renderTicker();m.classList.remove('is-fading');},280);}
+  function startTicker(){if(tickerInterval)clearInterval(tickerInterval);tickerInterval=setInterval(cycleTicker,5000);}
+
+  document.getElementById('stackGroups').addEventListener('click',e=>{
+    const btn=e.target.closest('[data-action]'); if(!btn)return; e.stopPropagation();
+    const id=btn.dataset.id;
+    if(btn.dataset.action==='toggle') toggleTaken(id);
+    else if(btn.dataset.action==='low') toggleLow(id);
+    else if(btn.dataset.action==='del') deleteItem(id);
+  });
+  document.getElementById('stackGroups').addEventListener('pointerdown',e=>{
+    const btn=e.target.closest('[data-action="del"]'); if(!btn)return; e.preventDefault(); e.stopPropagation(); deleteItem(btn.dataset.id);
+  });
+  document.getElementById('stackGroups').addEventListener('click',e=>{
+    const el=e.target.closest('[data-edit]'); if(!el||e.target.closest('[data-action]'))return;
+    if(el.getAttribute('contenteditable')==='true')return; startEdit(el);
+  });
+
+  function placeCaretAtEnd(el){const r=document.createRange();r.selectNodeContents(el);r.collapse(false);const s=window.getSelection();s.removeAllRanges();s.addRange(r);}
+  function startEdit(el){
+    const id=el.dataset.id,field=el.dataset.edit;
+    if(field==='name'){
+      const ts=el.querySelector('.stack-item-name-text'); if(!ts)return;
+      ts.setAttribute('contenteditable','true'); ts.style.outline='1px solid rgba(255,255,255,0.25)'; ts.style.outlineOffset='4px'; ts.style.borderRadius='4px'; ts.focus(); placeCaretAtEnd(ts);
+      const fin=(commit)=>{ts.removeAttribute('contenteditable');ts.style.outline='';ts.style.outlineOffset='';if(commit){const v=ts.textContent.trim();if(v)updateItem(id,'name',v);else render();}else render();};
+      ts.addEventListener('blur',()=>fin(true),{once:true});
+      ts.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();ts.blur();}if(e.key==='Escape'){ts.blur();render();}});
+    }
+    if(field==='meta'){
+      el.setAttribute('contenteditable','true'); el.focus(); placeCaretAtEnd(el);
+      const fin=(commit)=>{el.removeAttribute('contenteditable');if(commit){const parts=el.textContent.trim().split(/\s*·\s*/);updateItem(id,'dose',parts[0]||'');updateItem(id,'note',parts.slice(1).join(' · '));}render();};
+      el.addEventListener('blur',()=>fin(true),{once:true});
+      el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();el.blur();}if(e.key==='Escape'){el.blur();render();}});
+    }
+  }
+
+  const nameInput=document.getElementById('stackAddName'),doseInput=document.getElementById('stackAddDose'),winSelect=document.getElementById('stackAddWindow'),addBtn=document.getElementById('stackAddBtn'),resultsEl=document.getElementById('stackSearchResults');
+  let pendingNote='';
+  function searchSupplements(q){const ql=q.toLowerCase().trim();if(!ql)return[];const s=[],c=[];SUPPLEMENT_DB.forEach(x=>{const n=x.name.toLowerCase(),a=(x.aliases||[]).map(z=>z.toLowerCase());const all=[n,...a];if(all.some(z=>z.startsWith(ql)))s.push(x);else if(all.some(z=>z.includes(ql)))c.push(x);});return[...s,...c].slice(0,6);}
+  function renderSearchResults(q){const m=searchSupplements(q);if(!q.trim()||!m.length){resultsEl.hidden=true;resultsEl.innerHTML='';return;}resultsEl.hidden=false;resultsEl.innerHTML=m.map(x=>{const w=STACK_WINDOWS.find(z=>z.key===x.window)||STACK_WINDOWS[3];return`<button class="stack-result" data-name="${escapeHtml(x.name)}" data-dose="${escapeHtml(x.dose)}" data-window="${x.window}" data-note="${escapeHtml(x.note)}"><div class="stack-result-icon">${x.icon||'💊'}</div><div class="stack-result-body"><div class="stack-result-name">${escapeHtml(x.name)}</div><div class="stack-result-meta">${escapeHtml(x.dose)} · ${w.icon} ${w.title.toLowerCase()} · ${escapeHtml(x.note)}</div></div></button>`;}).join('');}
+  nameInput.addEventListener('input',()=>{renderSearchResults(nameInput.value);pendingNote='';});
+  nameInput.addEventListener('focus',()=>{if(nameInput.value.trim())renderSearchResults(nameInput.value);});
+  document.addEventListener('click',e=>{if(!e.target.closest('.stack-name-wrap'))resultsEl.hidden=true;});
+  resultsEl.addEventListener('click',e=>{const btn=e.target.closest('.stack-result');if(!btn)return;nameInput.value=btn.dataset.name;doseInput.value=btn.dataset.dose;winSelect.value=btn.dataset.window;pendingNote=btn.dataset.note;resultsEl.hidden=true;addBtn.focus();});
+  addBtn.addEventListener('click',()=>{addItem(nameInput.value,doseInput.value,winSelect.value,pendingNote);nameInput.value='';doseInput.value='';pendingNote='';resultsEl.hidden=true;nameInput.focus();});
+  [nameInput,doseInput].forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter'){if(!resultsEl.hidden&&i===nameInput){const f=resultsEl.querySelector('.stack-result');if(f){e.preventDefault();f.click();return;}}addBtn.click();}if(e.key==='Escape')resultsEl.hidden=true;}));
+
+  setInterval(()=>{const k=`stack:taken:${getActiveDate()}`;if(k!==todayKey)todayKey=k;render();},60000);
+  render();
+  startTicker();
+})();
+</script>
+</body>
+</html>

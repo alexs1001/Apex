@@ -1,0 +1,12 @@
+{
+  "name": "my-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal dashboard — goals, health, gym, finance. Deployed on Vercel.",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

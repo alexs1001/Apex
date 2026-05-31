@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/*.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "*.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "topbar.js",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    { "src": "/api/whoop-callback", "dest": "/api/whoop-callback.js" },
+    { "src": "/api/whoop-refresh",  "dest": "/api/whoop-refresh.js"  },
+    { "src": "/api/whoop-data",     "dest": "/api/whoop-data.js"     },
+    { "src": "/api/sync",           "dest": "/api/sync.js"           },
+    { "src": "/(.*\\.html)",        "dest": "/$1"                    },
+    { "src": "/topbar.js",          "dest": "/topbar.js"             },
+    { "src": "/",                   "dest": "/index.html"            }
+  ]
+}

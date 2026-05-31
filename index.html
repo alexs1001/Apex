@@ -1,0 +1,2103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>My Dashboard</title>
+<script src="topbar.js" defer></script>
+<style>
+:root {
+  --text-primary: #FAFAFA;
+  --text-secondary: #B8B6B0;
+  --text-tertiary: #76746E;
+  --success: #6BE3A4;
+  --warning: #F2C063;
+  --danger: #FF6B6B;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: #050506;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  padding: max(28px, env(safe-area-inset-top)) 20px 60px;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(circle at 82% 14%, rgba(224, 118, 88, 0.16), transparent 45%),
+    radial-gradient(circle at 18% 90%, rgba(180, 180, 200, 0.06), transparent 50%);
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: -2;
+  animation: drift 36s ease-in-out infinite alternate;
+}
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
+  background-size: 3px 3px;
+  pointer-events: none;
+  z-index: -1;
+}
+@keyframes drift {
+  0%   { transform: translate3d(0,0,0); }
+  100% { transform: translate3d(-22px, 14px, 0); }
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ===== Component 1: page title ===== */
+.dash-title {
+  margin: 0 0 14px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  background: linear-gradient(180deg, #FFFFFF 0%, #C7C4BC 120%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+@media (max-width: 480px) { .dash-title { font-size: 22px; } }
+
+/* ===== Component 2: Goal Ticker ===== */
+.ticker-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+.goal-ticker {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.30) 100%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.goal-ticker::after {
+  content: '';
+  position: absolute; top: 0; bottom: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  pointer-events: none;
+  animation: ticker-sweep 8s linear infinite;
+}
+@keyframes ticker-sweep {
+  0%   { left: -40%; }
+  100% { left: 110%; }
+}
+.goal-ticker-led { display: inline-flex; align-items: center; }
+.goal-ticker-led-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #6BE3A4;
+  box-shadow: 0 0 8px rgba(107,227,164,0.7);
+  animation: led-pulse 1.6s ease-in-out infinite;
+}
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.85); }
+}
+.goal-ticker-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px; font-weight: 800;
+  letter-spacing: 0.18em;
+  color: var(--text-tertiary);
+}
+.goal-ticker-stage {
+  position: relative; overflow: hidden;
+  flex: 1; height: 22px;
+}
+.goal-ticker-row {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12.5px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.goal-ticker-row.is-leaving  { animation: ticker-leave 0.45s cubic-bezier(0.55, 0, 0.55, 1) forwards; }
+.goal-ticker-row.is-entering { animation: ticker-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+@keyframes ticker-leave { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-100%); } }
+@keyframes ticker-enter { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
+.goal-ticker-status {
+  display: inline-flex; justify-content: center;
+  width: 18px;
+  color: var(--text-tertiary);
+}
+.goal-ticker-status[data-status="done"]    { color: var(--success); }
+.goal-ticker-status[data-status="pending"] { color: var(--text-tertiary); }
+.goal-ticker-text {
+  flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.goal-ticker-meta {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+}
+@media (max-width: 480px) {
+  .goal-ticker { padding: 9px 12px; }
+  .goal-ticker-label { font-size: 9px; letter-spacing: 0.14em; }
+  .goal-ticker-row { font-size: 12px; }
+  .goal-ticker-meta { font-size: 10px; padding: 2px 7px; }
+}
+
+/* ===== Component 3: Day Ring ===== */
+.day-ring-wrap {
+  display: flex; flex-wrap: wrap;
+  align-items: center; justify-content: center;
+  gap: 26px;
+  padding: 22px;
+  margin-bottom: 22px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+.day-ring {
+  position: relative;
+  width: 168px; height: 168px;
+  flex-shrink: 0;
+}
+.day-ring svg { width: 100%; height: 100%; display: block; }
+.day-ring-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 8; }
+.day-ring-fill {
+  fill: none;
+  stroke-width: 8;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 60px 60px;
+  transition: stroke 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+              stroke-dashoffset 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.day-ring-overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.day-ring-percent {
+  font-size: 40px; font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.day-ring-phase {
+  margin-top: 5px;
+  font-family: var(--font-mono);
+  font-size: 9.5px; font-weight: 800;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.day-ring-clock {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+.day-ring-text {
+  display: flex; flex-direction: column;
+  gap: 6px;
+  max-width: 280px;
+}
+.day-ring-status { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.day-ring-remaining { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); }
+.day-ring-hours { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
+@media (max-width: 480px) {
+  .day-ring { width: 144px; height: 144px; }
+  .day-ring-percent { font-size: 32px; }
+  .day-ring-status { font-size: 13px; }
+}
+
+/* ===== Component 4: section + To Do List ===== */
+.section { margin-top: 8px; }
+.section-title {
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 12px;
+}
+.section-title::before {
+  content: ''; width: 18px; height: 1px;
+  background: var(--text-tertiary); opacity: 0.6;
+}
+.section-title::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent);
+}
+
+.gm-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 14px;
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  transition: background 0.4s;
+  overflow: hidden;
+}
+.gm-card.gm-all-done::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(107,227,164,0.10), transparent 60%);
+  pointer-events: none;
+}
+.gm-card.gm-all-done .gm-progress-num,
+.gm-card.gm-all-done .gm-progress-label { color: var(--success); }
+
+.gm-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+  margin-bottom: 14px;
+  position: relative;
+}
+.gm-header-left { display: flex; flex-direction: column; }
+.gm-eyebrow {
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+.gm-progress-row { display: flex; align-items: baseline; gap: 6px; }
+.gm-progress-num {
+  font-size: 42px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.045em;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.gm-progress-total {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  color: var(--text-tertiary);
+}
+.gm-progress-label {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-left: 4px;
+}
+.gm-tomorrow-sub { font-size: 12px; color: var(--text-tertiary); margin-top: 4px; }
+.gm-tomorrow-count {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.gm-card-tomorrow .gm-progress-row { display: none; }
+
+.gm-streak {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--text-tertiary);
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  transition: background 0.25s, color 0.25s, border-color 0.25s;
+}
+.gm-streak-icon { font-size: 13px; }
+.gm-streak-num {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.gm-streak.gm-streak-active {
+  background: rgba(242,192,99,0.10);
+  color: #F2C063;
+  border-color: rgba(242,192,99,0.32);
+}
+.gm-streak.gm-streak-active .gm-streak-icon {
+  filter: drop-shadow(0 0 6px rgba(242,192,99,0.6));
+}
+
+.gm-bar {
+  display: flex; gap: 4px;
+  height: 6px;
+  margin-bottom: 16px;
+}
+.gm-bar:empty { display: none; }
+.gm-bar-seg {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.gm-bar-seg-done {
+  background: #6BE3A4;
+  box-shadow: 0 0 6px rgba(107,227,164,0.40);
+}
+
+.goal-list { list-style: none; margin: 0; padding: 0; }
+.empty-state {
+  text-align: center;
+  font-size: 12px; font-style: italic;
+  color: var(--text-tertiary);
+  padding: 14px 0;
+}
+
+.gm-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 6px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  transition: background 0.2s, opacity 0.3s;
+  position: relative;
+}
+.gm-row:hover { background: rgba(255,255,255,0.06); }
+.gm-row.gm-row-done {
+  opacity: 0.45;
+  background: rgba(107,227,164,0.04);
+}
+.gm-row.gm-row-done .gm-text {
+  text-decoration: line-through;
+  text-decoration-color: rgba(255,255,255,0.4);
+}
+.gm-row.gm-row-queued {
+  background: rgba(242,192,99,0.10);
+  box-shadow: inset 3px 0 0 0 #F2C063;
+}
+.gm-row.gm-row-queued .gm-text { color: #FFE2A8; }
+.gm-row.is-drag-over { border-top: 2px solid #6BE3A4; }
+.gm-row.is-queue-flashing { animation: gm-queue-flash 0.48s ease-out; }
+@keyframes gm-queue-flash {
+  0%   { background: rgba(255,255,255,0.035); transform: scale(1); }
+  40%  { background: rgba(242,192,99,0.32); transform: scale(1.015); }
+  100% { background: rgba(255,255,255,0.035); transform: scale(1); }
+}
+
+.gm-handle {
+  width: 14px; flex-shrink: 0;
+  color: var(--text-tertiary);
+  font-weight: 700; font-size: 14px;
+  letter-spacing: -2px;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.2s;
+  user-select: none;
+}
+.gm-row:hover .gm-handle { opacity: 1; }
+.gm-handle:active { cursor: grabbing; }
+
+.gm-check {
+  appearance: none; -webkit-appearance: none;
+  width: 22px; height: 22px; flex-shrink: 0;
+  margin: 0;
+  border: 1.5px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.28);
+  border-radius: 7px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.25s;
+}
+.gm-check:checked {
+  background: #6BE3A4;
+  border-color: #6BE3A4;
+  box-shadow: 0 0 12px rgba(107,227,164,0.40);
+}
+.gm-check:checked::after {
+  content: '';
+  position: absolute; left: 6px; top: 2px;
+  width: 6px; height: 11px;
+  border: solid #0A0A0B;
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg);
+  animation: gm-check-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes gm-check-pop {
+  from { transform: rotate(45deg) scale(0); }
+  to   { transform: rotate(45deg) scale(1); }
+}
+.gm-check:disabled { cursor: not-allowed; opacity: 0.55; }
+
+.gm-text {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: text;
+  outline: none;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+.gm-text[contenteditable="true"] {
+  outline: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.28);
+}
+
+.gm-queue-btn {
+  border: 0; background: transparent;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  opacity: 0.55;
+  transition: opacity 0.2s, color 0.2s, transform 0.1s;
+}
+.gm-queue-btn:hover { opacity: 1; }
+.gm-queue-btn.gm-queue-active {
+  color: #F2C063;
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(242,192,99,0.65));
+}
+.gm-queue-btn:disabled { cursor: not-allowed; opacity: 0.3; }
+
+.goal-delete {
+  border: 0; background: transparent;
+  color: var(--text-tertiary);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.5;
+  transition: opacity 0.2s, color 0.2s;
+}
+.gm-row:hover .goal-delete { opacity: 1; }
+.goal-delete:hover { color: var(--danger); }
+
+.gm-show-toggle {
+  width: 100%;
+  margin: 6px 0 0;
+  padding: 9px;
+  border: 1px dashed rgba(255,255,255,0.12);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-family: inherit;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.gm-show-toggle:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.22); }
+
+.gm-push-btn {
+  width: 100%;
+  margin-top: 14px;
+  padding: 11px;
+  border: 1px dashed rgba(255,255,255,0.16);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-family: inherit;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.gm-push-btn:hover {
+  color: var(--text-primary);
+  border-color: rgba(255,255,255,0.30);
+  border-style: solid;
+  background: rgba(255,255,255,0.04);
+}
+
+.goal-input-wrap.gm-input-wrap {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.gm-input {
+  flex: 1; min-width: 0;
+  padding: 11px 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  background: rgba(0,0,0,0.28);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+.gm-input::placeholder { color: var(--text-tertiary); }
+.gm-input:focus { border-color: rgba(255,255,255,0.28); background: rgba(0,0,0,0.36); }
+
+.gm-add {
+  padding: 11px 20px;
+  border: 0; border-radius: 12px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
+  color: #0A0A0B;
+  font-family: inherit; font-size: 13px; font-weight: 700;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.9),
+    0 2px 8px rgba(0,0,0,0.35),
+    0 8px 22px rgba(0,0,0,0.25);
+  transition: transform 0.1s, filter 0.15s;
+}
+.gm-add:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.gm-add:active { transform: translateY(0); }
+
+.gm-polish {
+  padding: 11px 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.gm-polish:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.18);
+}
+
+.gm-status {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  min-height: 14px;
+  margin-top: 4px;
+}
+.gm-status.gm-status-error { color: var(--danger); }
+
+@media (max-width: 480px) {
+  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
+  .gm-card { padding: 16px; }
+  .gm-progress-num { font-size: 36px; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   ENERGY & CAFFEINE TIMELINE
+═══════════════════════════════════════════════════════ */
+.etl-section { margin-top: 8px; margin-bottom: 8px; }
+
+.etl-card {
+  background: rgba(255,255,255,0.04);
+  border-radius: 16px;
+  padding: 20px 22px 22px;
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  margin-bottom: 10px;
+}
+
+.etl-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.etl-header-left {}
+.etl-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  margin-bottom: 3px;
+}
+.etl-sub {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.etl-whoop-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid;
+  flex-shrink: 0;
+}
+.etl-whoop-badge.live {
+  background: rgba(107,227,164,0.08);
+  border-color: rgba(107,227,164,0.30);
+  color: #6BE3A4;
+}
+.etl-whoop-badge.est {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.08);
+  color: var(--text-tertiary);
+}
+.etl-whoop-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* ── ENERGY TIMELINE ── */
+.etl-block { margin-bottom: 22px; }
+.etl-block-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.etl-block-label::after {
+  content: '';
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.07), transparent);
+}
+
+/* the scrollable timeline track */
+.etl-track-wrap {
+  position: relative;
+  overflow: hidden;
+}
+.etl-track {
+  position: relative;
+  height: 52px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+/* gradient energy fill */
+.etl-energy-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: linear-gradient(90deg,
+    rgba(75,75,100,0.0)  0%,    /* sleep */
+    rgba(255,183,106,0.28) 15%, /* morning rise */
+    rgba(107,227,164,0.42) 30%, /* peak am */
+    rgba(107,227,164,0.55) 42%, /* peak */
+    rgba(242,192,99,0.35) 55%,  /* post-lunch dip */
+    rgba(242,192,99,0.18) 63%,  /* afternoon trough */
+    rgba(107,227,164,0.38) 72%, /* evening bounce */
+    rgba(226,93,122,0.25) 85%,  /* wind down */
+    rgba(75,75,100,0.0)  100%   /* sleep */
+  );
+}
+
+/* zone segments drawn by JS */
+.etl-zone {
+  position: absolute;
+  top: 0; bottom: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: opacity 0.3s;
+  cursor: default;
+  user-select: none;
+}
+.etl-zone span { opacity: 0.85; mix-blend-mode: luminosity; }
+
+/* "now" needle */
+.etl-needle {
+  position: absolute;
+  top: -3px; bottom: -3px;
+  width: 2px;
+  border-radius: 2px;
+  background: #FFFFFF;
+  box-shadow: 0 0 10px rgba(255,255,255,0.65), 0 0 24px rgba(255,255,255,0.25);
+  z-index: 4;
+  transition: left 0.8s cubic-bezier(0.22,1,0.36,1);
+  pointer-events: none;
+}
+.etl-needle::before {
+  content: '';
+  position: absolute;
+  top: 3px; left: 50%;
+  transform: translateX(-50%);
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  box-shadow: 0 0 8px rgba(255,255,255,0.8);
+}
+
+/* hour labels below the track */
+.etl-hours {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 7px;
+  padding: 0 2px;
+}
+.etl-hour {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* current zone pill + next event */
+.etl-now-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.etl-now-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border: 1px solid;
+  transition: background 0.5s, border-color 0.5s, color 0.5s;
+}
+.etl-now-next {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+.etl-now-next strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* ── CAFFEINE TIMELINE ── */
+.etl-caff-track {
+  position: relative;
+  height: 52px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  overflow: hidden;
+}
+.etl-caff-zone {
+  position: absolute;
+  top: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.etl-caff-zone span { opacity: 0.85; }
+
+/* half-life decay curve drawn on canvas */
+.etl-caff-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.etl-caff-needle {
+  position: absolute;
+  top: -3px; bottom: -3px;
+  width: 2px;
+  border-radius: 2px;
+  background: #F2C063;
+  box-shadow: 0 0 10px rgba(242,192,99,0.7), 0 0 24px rgba(242,192,99,0.3);
+  z-index: 4;
+  transition: left 0.8s cubic-bezier(0.22,1,0.36,1);
+  pointer-events: none;
+}
+.etl-caff-needle::before {
+  content: '';
+  position: absolute;
+  top: 3px; left: 50%;
+  transform: translateX(-50%);
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #F2C063;
+  box-shadow: 0 0 8px rgba(242,192,99,0.9);
+}
+
+.etl-caff-info {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.etl-caff-stat {
+  flex: 1 1 0;
+  min-width: 80px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 10px;
+  text-align: center;
+}
+.etl-caff-stat-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 5px;
+}
+.etl-caff-stat-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.etl-caff-stat-sub {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-top: 3px;
+  font-family: var(--font-mono);
+}
+
+/* sleep pressure insight strip */
+.etl-insight {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-left: 2px solid rgba(242,192,99,0.45);
+  border-radius: 0 10px 10px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.etl-insight strong { color: var(--text-primary); font-weight: 600; }
+
+@media (max-width: 480px) {
+  .etl-card { padding: 16px 16px 18px; }
+  .etl-zone span, .etl-caff-zone span { font-size: 9px; }
+  .etl-caff-stat { padding: 8px 9px; }
+  .etl-caff-stat-val { font-size: 13px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1 class="dash-title">My Dashboard</h1>
+
+  <div class="ticker-row">
+    <div class="goal-ticker" id="goalTicker" aria-live="polite" aria-atomic="true">
+      <div class="goal-ticker-led"><span class="goal-ticker-led-dot"></span></div>
+      <div class="goal-ticker-label">GOALS</div>
+      <div class="goal-ticker-stage" id="goalTickerStage">
+        <div class="goal-ticker-row">
+          <span class="goal-ticker-status" data-status="">—</span>
+          <span class="goal-ticker-text">Loading…</span>
+        </div>
+      </div>
+      <div class="goal-ticker-meta" id="goalTickerMeta">0/0</div>
+    </div>
+  </div>
+
+  <div class="day-ring-wrap">
+    <div class="day-ring">
+      <svg viewBox="0 0 120 120">
+        <defs>
+          <filter id="dayRingGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="2.4" result="b" />
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <circle class="day-ring-track" cx="60" cy="60" r="52" />
+        <circle class="day-ring-fill"  cx="60" cy="60" r="52" id="dayRingFill" filter="url(#dayRingGlow)" />
+      </svg>
+      <div class="day-ring-overlay">
+        <div class="day-ring-percent" id="dayRingPercent">—</div>
+        <div class="day-ring-phase"   id="dayRingPhase">—</div>
+        <div class="day-ring-clock"   id="dayRingClock">—</div>
+      </div>
+    </div>
+    <div class="day-ring-text">
+      <div class="day-ring-status"    id="dayRingStatus">Loading…</div>
+      <div class="day-ring-remaining" id="dayRingRemaining">—</div>
+      <div class="day-ring-hours">8:00 AM – 12:00 AM</div>
+    </div>
+  </div>
+
+  <!-- ═══════ ENERGY & CAFFEINE TIMELINE ═══════ -->
+  <div class="etl-section">
+    <div class="section-title">Energy &amp; Caffeine</div>
+    <div class="etl-card">
+
+      <!-- header -->
+      <div class="etl-header">
+        <div class="etl-header-left">
+          <div class="etl-title">Daily Energy Map</div>
+          <div class="etl-sub" id="etlSub">Based on circadian rhythm · 8 AM wake</div>
+        </div>
+        <div id="etlWhoopBadge" class="etl-whoop-badge est">
+          <span class="etl-whoop-dot"></span>
+          <span id="etlBadgeText">ESTIMATED</span>
+        </div>
+      </div>
+
+      <!-- ── Energy track ── -->
+      <div class="etl-block">
+        <div class="etl-block-label">⚡ Energy levels</div>
+        <div class="etl-track-wrap">
+          <div class="etl-track" id="etlEnergyTrack">
+            <div class="etl-energy-fill"></div>
+            <!-- zones injected by JS -->
+            <div class="etl-needle" id="etlEnergyNeedle"></div>
+          </div>
+        </div>
+        <div class="etl-hours" id="etlEnergyHours"></div>
+        <div class="etl-now-row">
+          <div class="etl-now-pill" id="etlNowPill">—</div>
+          <div class="etl-now-next" id="etlNowNext"></div>
+        </div>
+      </div>
+
+      <!-- ── Caffeine track ── -->
+      <div class="etl-block" style="margin-bottom:0">
+        <div class="etl-block-label">☕ Caffeine window</div>
+        <div class="etl-track-wrap">
+          <div class="etl-caff-track" id="etlCaffTrack">
+            <!-- zones injected by JS -->
+            <canvas class="etl-caff-canvas" id="etlCaffCanvas"></canvas>
+            <div class="etl-caff-needle" id="etlCaffNeedle"></div>
+          </div>
+        </div>
+        <div class="etl-hours" id="etlCaffHours"></div>
+        <div class="etl-caff-info">
+          <div class="etl-caff-stat">
+            <div class="etl-caff-stat-label">Start after</div>
+            <div class="etl-caff-stat-val" id="etlCaffStart">—</div>
+            <div class="etl-caff-stat-sub">adenosine cleared</div>
+          </div>
+          <div class="etl-caff-stat">
+            <div class="etl-caff-stat-label">Cut-off</div>
+            <div class="etl-caff-stat-val" id="etlCaffCutoff">—</div>
+            <div class="etl-caff-stat-sub">before bed</div>
+          </div>
+          <div class="etl-caff-stat">
+            <div class="etl-caff-stat-label">Half-life</div>
+            <div class="etl-caff-stat-val">5–6 h</div>
+            <div class="etl-caff-stat-sub">avg adult</div>
+          </div>
+          <div class="etl-caff-stat">
+            <div class="etl-caff-stat-label">Status</div>
+            <div class="etl-caff-stat-val" id="etlCaffStatus">—</div>
+            <div class="etl-caff-stat-sub" id="etlCaffStatusSub"></div>
+          </div>
+        </div>
+        <div class="etl-insight" id="etlInsight"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">To Do List</div>
+
+    <!-- TODAY -->
+    <div class="gm-card" id="gmCardToday">
+      <div class="gm-header">
+        <div class="gm-header-left">
+          <div class="gm-eyebrow" id="todayLabel">Today —</div>
+          <div class="gm-progress-row">
+            <span class="gm-progress-num"   id="gmProgressNum">0</span>
+            <span class="gm-progress-total" id="gmProgressTotal">/ 0</span>
+            <span class="gm-progress-label" id="gmProgressLabel">no goals yet</span>
+          </div>
+        </div>
+        <div class="gm-streak" id="gmStreak">
+          <span class="gm-streak-icon">⚡</span>
+          <span class="gm-streak-num" id="gmStreakNum">0</span>
+          <span>day streak</span>
+        </div>
+      </div>
+      <div class="gm-bar" id="gmBar"></div>
+      <ul id="goalList" class="goal-list gm-list"></ul>
+      <div id="emptyState" class="empty-state">No goals for today yet — add one below.</div>
+      <button type="button" id="gmPushBtn" class="gm-push-btn" style="display:none;">Push remaining to tomorrow</button>
+      <div class="goal-input-wrap gm-input-wrap">
+        <input id="goalInput" class="gm-input" type="text" placeholder="Add a goal for today…" autocomplete="off">
+        <button type="button" id="goalAddBtn"    class="gm-add">+ Add</button>
+        <button type="button" id="goalPolishBtn" class="gm-polish">✨ Polish</button>
+        <div class="gm-status" id="polishStatus"></div>
+      </div>
+    </div>
+
+    <!-- PLAN TOMORROW -->
+    <div class="gm-card gm-card-tomorrow" id="gmCardTomorrow">
+      <div class="gm-header">
+        <div class="gm-header-left">
+          <div class="gm-eyebrow" id="tomorrowLabel">Plan tomorrow —</div>
+          <div class="gm-tomorrow-sub">Write tonight, locked until 6 AM.</div>
+        </div>
+        <div class="gm-tomorrow-count" id="gmTomorrowCount">0 planned</div>
+      </div>
+      <ul id="tomorrowList" class="goal-list gm-list"></ul>
+      <div id="tomorrowEmpty" class="empty-state">Nothing planned for tomorrow yet</div>
+      <div class="goal-input-wrap gm-input-wrap">
+        <input id="tomorrowInput" class="gm-input" type="text" placeholder="Add a goal for tomorrow…" autocomplete="off">
+        <button type="button" id="tomorrowAddBtn"    class="gm-add">+ Add</button>
+        <button type="button" id="tomorrowPolishBtn" class="gm-polish">✨ Polish</button>
+        <div class="gm-status" id="tomorrowStatus"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // Paste your Anthropic key here to enable ✨ Polish. Empty = falls back to plain add.
+  const ANTHROPIC_API_KEY = '';
+
+  const WAKE_HOUR  = 8;
+  const SLEEP_HOUR = 24;
+
+  // ---------- storage helpers ----------
+  function storeGet(key) {
+    try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; }
+  }
+  function storeSet(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    if (typeof key === 'string' && key.indexOf('goals:') === 0) {
+      window.dispatchEvent(new CustomEvent('goals-changed'));
+    }
+  }
+  function storeDelete(key) { try { localStorage.removeItem(key); } catch (e) {} }
+  function storeListKeys(prefix) {
+    const out = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf(prefix) === 0) out.push(k);
+    }
+    return out;
+  }
+
+  // ---------- date helpers ----------
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function dateToKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function getActiveDateString() {
+    const now = new Date();
+    if (now.getHours() < 6) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 1);
+      return dateToKey(d);
+    }
+    return dateToKey(now);
+  }
+  function getTomorrowDateString() {
+    const now = new Date();
+    const d = new Date(now);
+    if (now.getHours() >= 6) d.setDate(d.getDate() + 1);
+    return dateToKey(d);
+  }
+  function formatDate(yyyy_mm_dd) {
+    const parts = yyyy_mm_dd.split('-').map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    const wk = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+    const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    return wk + ', ' + mo + ' ' + d.getDate();
+  }
+
+  function todayKey()    { return 'goals:' + getActiveDateString(); }
+  function tomorrowKey() { return 'goals:' + getTomorrowDateString(); }
+
+  function getGoals(key) {
+    const g = storeGet(key);
+    return Array.isArray(g) ? g : [];
+  }
+  function setGoals(key, list) { storeSet(key, list); }
+
+  // ---------- rollover: pull undone older goals into today ----------
+  function rollover() {
+    const todayDateStr = getActiveDateString();
+    const todayK = 'goals:' + todayDateStr;
+    let today = getGoals(todayK);
+    const texts = new Set(today.map(g => g.text));
+
+    storeListKeys('goals:').forEach(k => {
+      const dateStr = k.slice('goals:'.length);
+      if (dateStr >= todayDateStr) return;
+      const old = getGoals(k);
+      old.forEach(g => {
+        if (!g.done && g.text && !texts.has(g.text)) {
+          today.push({ text: g.text, done: false });
+          texts.add(g.text);
+        }
+      });
+      storeDelete(k);
+    });
+    setGoals(todayK, today);
+  }
+
+  // ---------- streak ----------
+  function loadStreak() {
+    const s = storeGet('goal_streak_v1');
+    if (s && typeof s.count === 'number') return s;
+    return { count: 0, lastProcessedDate: '' };
+  }
+  function saveStreak(s) { storeSet('goal_streak_v1', s); }
+
+  function processStreak() {
+    const s = loadStreak();
+    const todayDateStr = getActiveDateString();
+    const keys = storeListKeys('goals:')
+      .map(k => k.slice('goals:'.length))
+      .filter(d => d < todayDateStr)
+      .sort();
+    keys.forEach(dateStr => {
+      if (s.lastProcessedDate && dateStr <= s.lastProcessedDate) return;
+      const list = getGoals('goals:' + dateStr);
+      if (list.length === 0) { /* don't break the streak on empty days */ }
+      else if (list.every(g => g.done)) s.count += 1;
+      else s.count = 0;
+      s.lastProcessedDate = dateStr;
+    });
+    saveStreak(s);
+  }
+
+  // ---------- Goal Ticker ----------
+  const tickerStage = document.getElementById('goalTickerStage');
+  const tickerMeta  = document.getElementById('goalTickerMeta');
+  let cycleIdx = 0;
+  let tickerTimer = null;
+
+  function buildTickerItems() {
+    const goals = getGoals(todayKey());
+    const total = goals.length;
+    const done  = goals.filter(g => g.done).length;
+    if (total === 0) return { items: [{ status: 'empty',   text: 'No goals set for today — add one to get rolling.' }], done, total };
+    if (done === total) return { items: [{ status: 'done', text: '✓ All goals done — solid day.' }], done, total };
+    const items = goals.filter(g => !g.done).map(g => ({ status: 'pending', text: g.text }));
+    return { items, done, total };
+  }
+
+  function statusGlyph(status) {
+    if (status === 'done') return '✓';
+    if (status === 'pending') return '○';
+    return '·';
+  }
+
+  let firstTick = true;
+  function tick() {
+    const { items, done, total } = buildTickerItems();
+    if (cycleIdx >= items.length) cycleIdx = 0;
+    const item = items[cycleIdx];
+    cycleIdx = (cycleIdx + 1) % items.length;
+
+    const oldRow = tickerStage.querySelector('.goal-ticker-row');
+    const newRow = document.createElement('div');
+    newRow.className = 'goal-ticker-row';
+    const status = document.createElement('span');
+    status.className = 'goal-ticker-status';
+    status.setAttribute('data-status', item.status);
+    status.textContent = statusGlyph(item.status);
+    const text = document.createElement('span');
+    text.className = 'goal-ticker-text';
+    text.textContent = item.text;
+    newRow.appendChild(status);
+    newRow.appendChild(text);
+
+    if (oldRow && !firstTick) {
+      oldRow.classList.add('is-leaving');
+      setTimeout(() => oldRow.remove(), 460);
+      newRow.classList.add('is-entering');
+    } else if (oldRow) {
+      oldRow.remove();
+    }
+    tickerStage.appendChild(newRow);
+    firstTick = false;
+
+    tickerMeta.textContent = done + '/' + total;
+  }
+
+  function startTicker() {
+    tick();
+    if (tickerTimer) clearInterval(tickerTimer);
+    tickerTimer = setInterval(tick, 5000);
+  }
+
+  window.addEventListener('goals-changed', () => {
+    cycleIdx = 0;
+    tick();
+  });
+
+  // ---------- Day Ring ----------
+  const PALETTE = [
+    [0,    [255, 216, 158]],
+    [12.5, [255, 205, 121]],
+    [25,   [255, 227, 143]],
+    [37.5, [255, 183, 106]],
+    [50,   [255, 149,  89]],
+    [62.5, [243, 111,  79]],
+    [75,   [226,  93, 122]],
+    [87.5, [123,  91, 176]],
+    [100,  [ 47,  58, 102]]
+  ];
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function paletteAt(p) {
+    if (p <= PALETTE[0][0]) return PALETTE[0][1];
+    if (p >= PALETTE[PALETTE.length - 1][0]) return PALETTE[PALETTE.length - 1][1];
+    for (let i = 0; i < PALETTE.length - 1; i++) {
+      const [p0, c0] = PALETTE[i];
+      const [p1, c1] = PALETTE[i + 1];
+      if (p >= p0 && p <= p1) {
+        const t = (p - p0) / (p1 - p0);
+        return [lerp(c0[0], c1[0], t), lerp(c0[1], c1[1], t), lerp(c0[2], c1[2], t)];
+      }
+    }
+    return [255,255,255];
+  }
+  function rgb(c) { return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')'; }
+
+  function formatClock(d) {
+    let h = d.getHours();
+    const m = d.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return h + ':' + pad2(m) + ' ' + ampm;
+  }
+  function formatRemaining(totalMin) {
+    const h = Math.floor(totalMin / 60);
+    const m = Math.floor(totalMin % 60);
+    return h + 'h ' + m + 'm';
+  }
+
+  const C = 2 * Math.PI * 52;
+  const fillEl = document.getElementById('dayRingFill');
+  fillEl.setAttribute('stroke-dasharray', C);
+  fillEl.setAttribute('stroke-dashoffset', C);
+
+  function updateDayRing() {
+    const now = new Date();
+    const hours = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+    const percentEl   = document.getElementById('dayRingPercent');
+    const phaseEl     = document.getElementById('dayRingPhase');
+    const clockEl     = document.getElementById('dayRingClock');
+    const statusEl    = document.getElementById('dayRingStatus');
+    const remainingEl = document.getElementById('dayRingRemaining');
+
+    clockEl.textContent = formatClock(now);
+
+    if (hours < WAKE_HOUR) {
+      fillEl.setAttribute('stroke-dashoffset', C);
+      fillEl.style.stroke = '#4D4B47';
+      percentEl.textContent = '—';
+      phaseEl.textContent   = 'SLEEPING';
+      statusEl.textContent  = '😴 Still sleeping';
+      const minsUntil = (WAKE_HOUR - hours) * 60;
+      remainingEl.textContent = formatRemaining(minsUntil) + ' until wake-up';
+      return;
+    }
+
+    if (hours >= SLEEP_HOUR) {
+      fillEl.setAttribute('stroke-dashoffset', 0);
+      fillEl.style.stroke = '#E25D7A';
+      percentEl.textContent = '100%';
+      phaseEl.textContent   = 'PAST BEDTIME';
+      statusEl.textContent  = '⚠️ Past bedtime';
+      remainingEl.textContent = 'Sleep!';
+      return;
+    }
+
+    const span = SLEEP_HOUR - WAKE_HOUR;
+    const percent = (hours - WAKE_HOUR) / span * 100;
+    fillEl.setAttribute('stroke-dashoffset', C * (1 - percent / 100));
+    fillEl.style.stroke = rgb(paletteAt(percent));
+    percentEl.textContent = Math.floor(percent) + '%';
+
+    let phase, status;
+    if (percent < 25)      { phase = 'MORNING';   status = '☀️ Morning — fresh start'; }
+    else if (percent < 50) { phase = 'MIDDAY';    status = '⚡ Midday — keep moving'; }
+    else if (percent < 75) { phase = 'AFTERNOON'; status = '🔥 Afternoon — push it'; }
+    else if (percent < 90) { phase = 'EVENING';   status = '⏳ Evening — wrap up'; }
+    else                   { phase = 'BEDTIME';   status = '🌙 Bedtime soon'; }
+    phaseEl.textContent  = phase;
+    statusEl.textContent = status;
+
+    const minsLeft = (SLEEP_HOUR - hours) * 60;
+    remainingEl.textContent = formatRemaining(minsLeft) + ' awake time left';
+  }
+
+  // ---------- Row building ----------
+  function makeInlineEdit(textEl, goals, idx, key, reload) {
+    textEl.addEventListener('click', () => {
+      if (textEl.getAttribute('contenteditable') === 'true') return;
+      const original = textEl.textContent;
+      textEl.setAttribute('contenteditable', 'true');
+      textEl.focus();
+      const range = document.createRange();
+      range.selectNodeContents(textEl);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(range);
+
+      function commit() {
+        const next = textEl.textContent.trim();
+        textEl.removeAttribute('contenteditable');
+        if (next && next !== original) {
+          const list = getGoals(key);
+          if (list[idx]) { list[idx].text = next; setGoals(key, list); }
+          reload();
+        } else {
+          textEl.textContent = original;
+        }
+      }
+      function cancel() {
+        textEl.removeAttribute('contenteditable');
+        textEl.textContent = original;
+      }
+      textEl.addEventListener('blur', commit, { once: true });
+      textEl.addEventListener('keydown', function onKey(e) {
+        if (e.key === 'Enter') { e.preventDefault(); textEl.removeEventListener('keydown', onKey); textEl.blur(); }
+        else if (e.key === 'Escape') { e.preventDefault(); textEl.removeEventListener('keydown', onKey); cancel(); }
+      });
+    });
+  }
+
+  function wireDragReorder(row, listEl, key, reload) {
+    row.setAttribute('draggable', 'true');
+    row.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', row.dataset.idx);
+    });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      row.classList.add('is-drag-over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('is-drag-over'));
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      row.classList.remove('is-drag-over');
+      const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      const to   = parseInt(row.dataset.idx, 10);
+      if (isNaN(from) || isNaN(to) || from === to) return;
+      const list = getGoals(key);
+      const [moved] = list.splice(from, 1);
+      list.splice(to, 0, moved);
+      setGoals(key, list);
+      reload();
+    });
+  }
+
+  function buildGoalRow(goal, idx, key, readOnly, reload) {
+    const li = document.createElement('li');
+    li.className = 'gm-row';
+    li.dataset.idx = String(idx);
+    if (goal.done) li.classList.add('gm-row-done');
+    if (goal.queued) li.classList.add('gm-row-queued');
+
+    const handle = document.createElement('span');
+    handle.className = 'gm-handle';
+    handle.textContent = '⋮⋮';
+    li.appendChild(handle);
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'gm-check';
+    cb.checked = !!goal.done;
+    if (readOnly) { cb.disabled = true; cb.title = 'Activates at 6 AM tomorrow'; }
+    cb.addEventListener('change', () => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].done = cb.checked;
+      if (cb.checked) list[idx].doneAt = Date.now();
+      else delete list[idx].doneAt;
+      setGoals(key, list);
+      reload();
+    });
+    li.appendChild(cb);
+
+    const text = document.createElement('span');
+    text.className = 'gm-text';
+    text.textContent = goal.text;
+    li.appendChild(text);
+    makeInlineEdit(text, null, idx, key, reload);
+
+    const queueBtn = document.createElement('button');
+    queueBtn.type = 'button';
+    queueBtn.className = 'gm-queue-btn' + (goal.queued ? ' gm-queue-active' : '');
+    queueBtn.textContent = '⚡';
+    queueBtn.title = 'Queue for productivity window';
+    if (readOnly) queueBtn.disabled = true;
+    queueBtn.addEventListener('click', () => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].queued = !list[idx].queued;
+      setGoals(key, list);
+      li.classList.add('is-queue-flashing');
+      setTimeout(reload, 480);
+    });
+    li.appendChild(queueBtn);
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'goal-delete';
+    del.setAttribute('aria-label', 'Delete goal');
+    del.textContent = '×';
+    del.addEventListener('click', () => {
+      const list = getGoals(key);
+      list.splice(idx, 1);
+      setGoals(key, list);
+      reload();
+    });
+    li.appendChild(del);
+
+    wireDragReorder(li, null, key, reload);
+    return li;
+  }
+
+  // ---------- Renderers ----------
+  function renderTodayHeader() {
+    const goals = getGoals(todayKey());
+    const total = goals.length;
+    const done  = goals.filter(g => g.done).length;
+    document.getElementById('gmProgressNum').textContent   = done;
+    document.getElementById('gmProgressTotal').textContent = '/ ' + total;
+    const label = document.getElementById('gmProgressLabel');
+    if (total === 0)        label.textContent = 'no goals yet';
+    else if (done === total) label.textContent = 'all done — solid day';
+    else                     label.textContent = 'complete';
+
+    document.getElementById('todayLabel').textContent =
+      'Today — ' + formatDate(getActiveDateString());
+
+    const bar = document.getElementById('gmBar');
+    bar.innerHTML = '';
+    goals.forEach(g => {
+      const seg = document.createElement('div');
+      seg.className = 'gm-bar-seg' + (g.done ? ' gm-bar-seg-done' : '');
+      bar.appendChild(seg);
+    });
+
+    const card = document.getElementById('gmCardToday');
+    card.classList.toggle('gm-all-done', total > 0 && done === total);
+
+    const pushBtn = document.getElementById('gmPushBtn');
+    pushBtn.style.display = (total > 0 && done < total) ? 'block' : 'none';
+  }
+
+  function renderStreak() {
+    const s = loadStreak();
+    document.getElementById('gmStreakNum').textContent = s.count;
+    document.getElementById('gmStreak').classList.toggle('gm-streak-active', s.count > 0);
+  }
+
+  function renderTomorrowCount() {
+    const list = getGoals(tomorrowKey());
+    document.getElementById('gmTomorrowCount').textContent = list.length + ' planned';
+    document.getElementById('tomorrowLabel').textContent =
+      'Plan tomorrow — ' + formatDate(getTomorrowDateString());
+  }
+
+  function renderListInto(goals, listEl, emptyEl, key, readOnly) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = goals.length === 0 ? 'block' : 'none';
+    const reload = () => (key === todayKey() ? loadToday() : loadTomorrow());
+
+    const visible = goals.length > 5 ? goals.slice(0, 5) : goals;
+    visible.forEach((g, i) => listEl.appendChild(buildGoalRow(g, i, key, readOnly, reload)));
+
+    if (goals.length > 5) {
+      let expanded = false;
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'gm-show-toggle';
+      const updateLabel = () => {
+        toggle.textContent = expanded ? 'Show less ▴' : ('Show ' + (goals.length - 5) + ' more ▾');
+      };
+      updateLabel();
+      toggle.addEventListener('click', () => {
+        expanded = !expanded;
+        if (expanded) {
+          goals.slice(5).forEach((g, i) => {
+            const row = buildGoalRow(g, i + 5, key, readOnly, reload);
+            listEl.insertBefore(row, toggle);
+          });
+        } else {
+          Array.from(listEl.querySelectorAll('.gm-row')).slice(5).forEach(r => r.remove());
+        }
+        updateLabel();
+      });
+      listEl.appendChild(toggle);
+    }
+
+    if (key === todayKey()) renderTodayHeader();
+    else                    renderTomorrowCount();
+  }
+
+  function loadToday() {
+    const goals = getGoals(todayKey());
+    renderListInto(goals, document.getElementById('goalList'), document.getElementById('emptyState'), todayKey(), false);
+  }
+  function loadTomorrow() {
+    const goals = getGoals(tomorrowKey());
+    renderListInto(goals, document.getElementById('tomorrowList'), document.getElementById('tomorrowEmpty'), tomorrowKey(), true);
+  }
+
+  // ---------- Push remaining ----------
+  document.getElementById('gmPushBtn').addEventListener('click', () => {
+    const today    = getGoals(todayKey());
+    const remaining = today.filter(g => !g.done);
+    if (remaining.length === 0) return;
+    if (!confirm('Move ' + remaining.length + ' unchecked goal' + (remaining.length === 1 ? '' : 's') + ' to tomorrow?')) return;
+    const tomorrow = getGoals(tomorrowKey());
+    const seen = new Set(tomorrow.map(g => g.text));
+    remaining.forEach(g => {
+      if (!seen.has(g.text)) { tomorrow.push({ text: g.text, done: false }); seen.add(g.text); }
+    });
+    setGoals(tomorrowKey(), tomorrow);
+    setGoals(todayKey(), today.filter(g => g.done));
+    loadToday(); loadTomorrow();
+  });
+
+  // ---------- Add + Polish handlers ----------
+  function showStatus(el, message, isError) {
+    el.textContent = message;
+    el.classList.toggle('gm-status-error', !!isError);
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.textContent = ''; el.classList.remove('gm-status-error'); }, 3500);
+  }
+
+  async function polishOne(text) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content:
+            'Rewrite this single goal so it is concrete, action-oriented, and under 60 characters. ' +
+            'Return ONLY a JSON array with exactly one string, no preamble, no code fences.\n\nGoal: ' + text
+        }]
+      })
+    });
+    const data = await res.json();
+    const content = (data && data.content && data.content[0] && data.content[0].text) || '';
+    const arr = JSON.parse(content);
+    if (!Array.isArray(arr) || arr.length < 1 || typeof arr[0] !== 'string') throw new Error('bad response');
+    return arr[0].trim();
+  }
+
+  function makeAddHandlers(input, addBtn, polishBtn, key, statusEl, reload) {
+    function plainAdd(text) {
+      const list = getGoals(key);
+      list.push({ text, done: false });
+      setGoals(key, list);
+      input.value = '';
+      reload();
+    }
+    addBtn.addEventListener('click', () => {
+      const text = input.value.trim();
+      if (!text) return;
+      plainAdd(text);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); }
+    });
+    polishBtn.addEventListener('click', async () => {
+      const text = input.value.trim();
+      if (!text) return;
+      if (!ANTHROPIC_API_KEY) {
+        plainAdd(text);
+        showStatus(statusEl, 'Polish needs an Anthropic API key — added as-typed.', false);
+        return;
+      }
+      polishBtn.disabled = true;
+      try {
+        const polished = await polishOne(text);
+        plainAdd(polished);
+      } catch (e) {
+        plainAdd(text);
+        showStatus(statusEl, 'Polish failed — added as-typed.', true);
+      } finally {
+        polishBtn.disabled = false;
+      }
+    });
+  }
+
+  makeAddHandlers(
+    document.getElementById('goalInput'),
+    document.getElementById('goalAddBtn'),
+    document.getElementById('goalPolishBtn'),
+    todayKey(),
+    document.getElementById('polishStatus'),
+    loadToday
+  );
+  makeAddHandlers(
+    document.getElementById('tomorrowInput'),
+    document.getElementById('tomorrowAddBtn'),
+    document.getElementById('tomorrowPolishBtn'),
+    tomorrowKey(),
+    document.getElementById('tomorrowStatus'),
+    loadTomorrow
+  );
+
+  // ---------- Boot ----------
+  rollover();
+  processStreak();
+  loadToday();
+  loadTomorrow();
+  renderStreak();
+  updateDayRing();
+  setInterval(updateDayRing, 60 * 1000);
+  startTicker();
+
+  // Re-render when storage changes from another tab (or our bridged parent).
+  window.addEventListener('storage', () => {
+    loadToday(); loadTomorrow(); renderStreak();
+  });
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ENERGY & CAFFEINE TIMELINE — self-contained module
+     Reads WHOOP tokens from localStorage if connected, falls
+     back to pure circadian estimates if not.
+═══════════════════════════════════════════════════════════ -->
+<script>
+(function () {
+  'use strict';
+
+  // ── Config (mirrors index.html WAKE/SLEEP constants) ──────
+  const DAY_START  = 8;   // 8 AM
+  const DAY_END    = 24;  // midnight
+  const DAY_SPAN   = DAY_END - DAY_START; // 16 h displayed
+
+  // Caffeine: body naturally clears adenosine ~90 min after waking;
+  // cut-off is 10 h before bed (half-life ≈5-6 h; 2 half-lives before bed)
+  const CAFF_DELAY_H    = 1.5;   // h after wake before first coffee
+  const CAFF_HALFLIFE_H = 5.5;   // average adult caffeine half-life
+  const CAFF_CUTOFF_H_BEFORE_BED = 10; // hours before sleep
+
+  // Bed time (match index.html SLEEP_HOUR = 24)
+  const BED_HOUR = 24;
+
+  // ── Helpers ───────────────────────────────────────────────
+  function pct(h) { return Math.max(0, Math.min(100, (h - DAY_START) / DAY_SPAN * 100)); }
+  function fmtH(h) {
+    const total = Math.round(h * 60);
+    const hh = Math.floor(total / 60) % 24;
+    const mm = total % 60;
+    const ampm = hh >= 12 ? 'PM' : 'AM';
+    const disp = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;
+    return disp + (mm > 0 ? ':' + String(mm).padStart(2,'0') : '') + ' ' + ampm;
+  }
+  function nowH() {
+    const n = new Date();
+    return n.getHours() + n.getMinutes()/60 + n.getSeconds()/3600;
+  }
+
+  // ── WHOOP data reader ─────────────────────────────────────
+  // Reads from localStorage cache that health.html's WHOOP JS writes.
+  // Keys checked: whoop_tokens_v1 (to know if connected),
+  // whoop_cache_v1 (recovery/hrv/sleep we cache below).
+  function getWhoopData() {
+    try {
+      const tokens = JSON.parse(localStorage.getItem('whoop_tokens_v1'));
+      if (!tokens || !tokens.access) return null;
+      // Try cached values written by this module after first fetch
+      const cache = JSON.parse(localStorage.getItem('whoop_etl_cache_v1'));
+      return cache || null;
+    } catch { return null; }
+  }
+
+  // Fetch & cache WHOOP data for the timeline (recovery + sleep scores).
+  // We call /api/whoop-data proxied through our serverless fn.
+  async function fetchAndCacheWhoop() {
+    let tokens;
+    try { tokens = JSON.parse(localStorage.getItem('whoop_tokens_v1')); } catch {}
+    if (!tokens || !tokens.access) return null;
+
+    // Refresh if expired
+    if (tokens.expires && Date.now() > tokens.expires - 60000) {
+      try {
+        const r = await fetch('/api/whoop-refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: tokens.refresh })
+        });
+        const j = await r.json();
+        if (j.access_token) {
+          tokens = { access: j.access_token, refresh: j.refresh_token || tokens.refresh, expires: Date.now() + (j.expires_in || 3500) * 1000 };
+          localStorage.setItem('whoop_tokens_v1', JSON.stringify(tokens));
+        }
+      } catch {}
+    }
+
+    try {
+      const [rec, sleep] = await Promise.all([
+        fetch('/api/whoop-data?path=/recovery&limit=1', { headers: { Authorization: 'Bearer ' + tokens.access } }).then(r => r.json()).catch(() => null),
+        fetch('/api/whoop-data?path=/activity/sleep&limit=1', { headers: { Authorization: 'Bearer ' + tokens.access } }).then(r => r.json()).catch(() => null),
+      ]);
+
+      const rs = rec && rec.records && rec.records[0] && rec.records[0].score;
+      const ss = sleep && sleep.records && sleep.records[0] && sleep.records[0].score;
+
+      const cache = {
+        ts: Date.now(),
+        recovery:      rs ? (rs.recovery_score || 0) : null,
+        hrv:           rs ? (rs.hrv_rmssd_milli || null) : null,
+        rhr:           rs ? (rs.resting_heart_rate || null) : null,
+        sleepPerf:     ss ? (ss.sleep_performance_percentage || null) : null,
+        remMs:         ss && ss.stage_summary ? (ss.stage_summary.total_rem_sleep_time_milli || 0) : null,
+        deepMs:        ss && ss.stage_summary ? (ss.stage_summary.total_slow_wave_sleep_time_milli || 0) : null,
+      };
+      localStorage.setItem('whoop_etl_cache_v1', JSON.stringify(cache));
+      return cache;
+    } catch { return null; }
+  }
+
+  // ── Energy zones definition ───────────────────────────────
+  // Each zone: { label, from (hour), to (hour), color, textColor, level 0-1 }
+  // These are based on circadian research (Huberman, Walker, Roenneberg).
+  // WHOOP recovery score shifts the zone amplitudes.
+  function buildEnergyZones(wakeH, recoveryPct) {
+    // recovery 0-100 → multiplier 0.6-1.0
+    const mult = recoveryPct != null ? 0.6 + (recoveryPct / 100) * 0.4 : 0.85;
+
+    return [
+      // Hour offsets are relative to wakeH
+      { label: 'Rising',      from: wakeH + 0,   to: wakeH + 1.5, level: 0.38 * mult, color: 'rgba(255,183,106,0.18)', text: '#FFB76A' },
+      { label: 'Peak',        from: wakeH + 1.5, to: wakeH + 4,   level: 0.92 * mult, color: 'rgba(107,227,164,0.22)', text: '#6BE3A4' },
+      { label: 'Sustained',   from: wakeH + 4,   to: wakeH + 6,   level: 0.82 * mult, color: 'rgba(107,227,164,0.14)', text: '#6BE3A4' },
+      { label: 'Dip',         from: wakeH + 6,   to: wakeH + 8,   level: 0.42 * mult, color: 'rgba(242,192,99,0.14)',  text: '#F2C063' },
+      { label: 'Rebound',     from: wakeH + 8,   to: wakeH + 11,  level: 0.72 * mult, color: 'rgba(107,227,164,0.15)', text: '#6BE3A4' },
+      { label: 'Wind down',   from: wakeH + 11,  to: wakeH + 13.5,level: 0.38 * mult, color: 'rgba(226,93,122,0.16)',  text: '#E25D7A' },
+      { label: 'Low',         from: wakeH + 13.5, to: DAY_END,    level: 0.18,         color: 'rgba(75,75,100,0.10)',   text: '#76746E' },
+    ].filter(z => z.from < DAY_END && z.to > DAY_START);
+  }
+
+  // ── Caffeine zones ────────────────────────────────────────
+  function buildCaffZones(wakeH, bedH) {
+    const startH  = wakeH + CAFF_DELAY_H;
+    const cutoffH = bedH  - CAFF_CUTOFF_H_BEFORE_BED;
+    return [
+      { label: 'Wait',    from: DAY_START, to: startH,  color: 'rgba(255,255,255,0.04)', text: '#76746E' },
+      { label: 'Optimal', from: startH,    to: cutoffH, color: 'rgba(242,192,99,0.16)',  text: '#F2C063' },
+      { label: 'Avoid',   from: cutoffH,   to: DAY_END, color: 'rgba(255,107,107,0.14)', text: '#FF8A8A' },
+    ];
+  }
+
+  // ── Render helpers ────────────────────────────────────────
+  function renderHourLabels(containerEl, hours) {
+    containerEl.innerHTML = '';
+    hours.forEach(h => {
+      const span = document.createElement('span');
+      span.className = 'etl-hour';
+      span.textContent = fmtH(h);
+      containerEl.appendChild(span);
+    });
+  }
+
+  function renderZones(trackEl, zones, needleEl, nowHour) {
+    // Remove old zone divs
+    trackEl.querySelectorAll('.etl-zone,.etl-caff-zone').forEach(e => e.remove());
+
+    zones.forEach(z => {
+      const fromPct = pct(z.from);
+      const toPct   = pct(z.to);
+      const w = toPct - fromPct;
+      if (w <= 0) return;
+      const div = document.createElement('div');
+      div.className = needleEl.id === 'etlEnergyNeedle' ? 'etl-zone' : 'etl-caff-zone';
+      div.style.left  = fromPct + '%';
+      div.style.width = w + '%';
+      div.style.background = z.color;
+      if (w > 8) {
+        const sp = document.createElement('span');
+        sp.textContent = z.label;
+        sp.style.color = z.text;
+        sp.style.fontSize = '10px';
+        sp.style.fontWeight = '700';
+        sp.style.letterSpacing = '0.07em';
+        sp.style.textTransform = 'uppercase';
+        div.appendChild(sp);
+      }
+      // Insert before needle
+      trackEl.insertBefore(div, needleEl);
+    });
+
+    // Place needle
+    const n = pct(nowHour);
+    needleEl.style.left = 'calc(' + n + '% - 1px)';
+    needleEl.style.display = (nowHour >= DAY_START && nowHour < DAY_END) ? 'block' : 'none';
+  }
+
+  // Draw caffeine half-life decay curve on canvas
+  function drawCaffCurve(canvas, startH, peakDose) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.offsetWidth, H = canvas.offsetHeight;
+    if (!W || !H) return;
+    canvas.width  = W;
+    canvas.height = H;
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw a soft glow curve representing caffeine level over the day
+    // Peak at ~startH + 0.75 h (absorption), decays with t½ = 5.5 h
+    const peakH  = startH + 0.75;
+    const maxLvl = 0.78; // fraction of track height
+
+    ctx.beginPath();
+    let first = true;
+    for (let h = DAY_START; h <= DAY_END; h += 0.05) {
+      const x = pct(h) / 100 * W;
+      let level;
+      if (h < startH) {
+        level = 0;
+      } else if (h < peakH) {
+        // linear absorption
+        level = maxLvl * ((h - startH) / (peakH - startH));
+      } else {
+        // exponential decay: C(t) = C_peak × (0.5)^(t/t½)
+        const elapsed = h - peakH;
+        level = maxLvl * Math.pow(0.5, elapsed / CAFF_HALFLIFE_H);
+      }
+      const y = H - level * (H * 0.78) - 4;
+      if (first) { ctx.moveTo(x, y); first = false; }
+      else ctx.lineTo(x, y);
+    }
+
+    // Gradient stroke
+    const grad = ctx.createLinearGradient(0, 0, W, 0);
+    grad.addColorStop(0,   'rgba(242,192,99,0.0)');
+    grad.addColorStop(0.3, 'rgba(242,192,99,0.9)');
+    grad.addColorStop(0.7, 'rgba(242,192,99,0.7)');
+    grad.addColorStop(1,   'rgba(242,192,99,0.1)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    // Fill under curve
+    ctx.lineTo(W, H);
+    ctx.lineTo(pct(startH)/100 * W, H);
+    ctx.closePath();
+    const fillGrad = ctx.createLinearGradient(0, 0, 0, H);
+    fillGrad.addColorStop(0,   'rgba(242,192,99,0.18)');
+    fillGrad.addColorStop(1,   'rgba(242,192,99,0.00)');
+    ctx.fillStyle = fillGrad;
+    ctx.fill();
+  }
+
+  // ── Now-pill state ────────────────────────────────────────
+  function currentZoneInfo(zones, nowHour) {
+    for (const z of zones) {
+      if (nowHour >= z.from && nowHour < z.to) return z;
+    }
+    return null;
+  }
+  function nextZoneInfo(zones, nowHour) {
+    for (const z of zones) {
+      if (z.from > nowHour) return z;
+    }
+    return null;
+  }
+
+  function applyNowPill(pill, zone) {
+    if (!zone) { pill.textContent = '—'; pill.style.cssText = ''; return; }
+    pill.textContent = zone.label;
+    pill.style.background   = zone.color;
+    pill.style.borderColor  = zone.text + '55';
+    pill.style.color        = zone.text;
+  }
+
+  // ── Main render ───────────────────────────────────────────
+  function render(whoop) {
+    const wake   = DAY_START;
+    const bed    = BED_HOUR;
+    const nh     = nowH();
+    const rec    = whoop ? whoop.recovery : null;
+
+    // Update badge
+    const badge    = document.getElementById('etlWhoopBadge');
+    const badgeTxt = document.getElementById('etlBadgeText');
+    const sub      = document.getElementById('etlSub');
+    if (whoop && rec != null) {
+      badge.className   = 'etl-whoop-badge live';
+      badgeTxt.textContent = 'WHOOP LIVE';
+      sub.textContent   = `Recovery ${Math.round(rec)}% · HRV ${whoop.hrv ? Math.round(whoop.hrv) + ' ms' : '—'} · Circadian adjusted`;
+    } else {
+      badge.className   = 'etl-whoop-badge est';
+      badgeTxt.textContent = 'ESTIMATED';
+      sub.textContent   = 'Based on circadian rhythm · Connect WHOOP for personalised data';
+    }
+
+    // Energy zones
+    const eZones = buildEnergyZones(wake, rec);
+    const eTrack = document.getElementById('etlEnergyTrack');
+    const eNeedle = document.getElementById('etlEnergyNeedle');
+    renderZones(eTrack, eZones, eNeedle, nh);
+
+    // Energy hour labels
+    const eHourEls = document.getElementById('etlEnergyHours');
+    const eHours = [8,10,12,14,16,18,20,22,24];
+    renderHourLabels(eHourEls, eHours);
+
+    // Now pill
+    const curZone  = currentZoneInfo(eZones, nh);
+    const nextZone = nextZoneInfo(eZones, nh);
+    const pill     = document.getElementById('etlNowPill');
+    const nextEl   = document.getElementById('etlNowNext');
+    applyNowPill(pill, curZone);
+    if (nextZone && nextZone.from < DAY_END) {
+      const hoursUntil = nextZone.from - nh;
+      const minsUntil  = Math.round(hoursUntil * 60);
+      nextEl.innerHTML = 'Next: <strong>' + nextZone.label + '</strong> in ' + (minsUntil < 60 ? minsUntil + ' min' : Math.round(hoursUntil * 10)/10 + ' h') + ' · ' + fmtH(nextZone.from);
+    } else {
+      nextEl.textContent = '';
+    }
+
+    // Caffeine zones
+    const cZones  = buildCaffZones(wake, bed);
+    const cTrack  = document.getElementById('etlCaffTrack');
+    const cNeedle = document.getElementById('etlCaffNeedle');
+    renderZones(cTrack, cZones, cNeedle, nh);
+
+    // Caffeine hour labels
+    const cHourEls = document.getElementById('etlCaffHours');
+    renderHourLabels(cHourEls, eHours);
+
+    // Caff canvas curve
+    const canvas = document.getElementById('etlCaffCanvas');
+    const caffStartH = wake + CAFF_DELAY_H;
+    drawCaffCurve(canvas, caffStartH, 1);
+
+    // Caff stats
+    const cutoff = bed - CAFF_CUTOFF_H_BEFORE_BED;
+    document.getElementById('etlCaffStart').textContent  = fmtH(caffStartH);
+    document.getElementById('etlCaffCutoff').textContent = fmtH(cutoff);
+
+    const statusEl  = document.getElementById('etlCaffStatus');
+    const statusSub = document.getElementById('etlCaffStatusSub');
+    const cCur = currentZoneInfo(cZones, nh);
+    if (!cCur || cCur.label === 'Wait') {
+      const minsLeft = Math.round((caffStartH - nh) * 60);
+      statusEl.textContent  = 'Wait';
+      statusEl.style.color  = '#76746E';
+      statusSub.textContent = minsLeft > 0 ? minsLeft + ' min left' : 'almost ready';
+    } else if (cCur.label === 'Optimal') {
+      const minsLeft = Math.round((cutoff - nh) * 60);
+      statusEl.textContent  = '✓ Go';
+      statusEl.style.color  = '#F2C063';
+      statusSub.textContent = fmtH(cutoff) + ' cut-off';
+    } else {
+      statusEl.textContent  = 'Stop';
+      statusEl.style.color  = '#FF8A8A';
+      statusSub.textContent = 'sleep at risk';
+    }
+
+    // Insight strip — adapts based on WHOOP + time of day
+    const insightEl = document.getElementById('etlInsight');
+    let insight = '';
+    if (rec != null) {
+      if (rec >= 67) {
+        if (nh >= caffStartH && nh < caffStartH + 2) {
+          insight = 'Strong recovery (<strong>' + Math.round(rec) + '%</strong>) — your peak window is primed. A single coffee now gives maximum cognitive lift with minimal tolerance cost.';
+        } else if (nh >= cutoff) {
+          insight = 'Recovery is strong but caffeine after <strong>' + fmtH(cutoff) + '</strong> will reduce deep sleep by up to 20% — protect tonight\'s HRV.';
+        } else {
+          insight = 'Recovery at <strong>' + Math.round(rec) + '%</strong> — your adenosine receptors are sensitive right now. Caffeine in the optimal window will feel sharper than usual.';
+        }
+      } else if (rec >= 34) {
+        insight = 'Moderate recovery (<strong>' + Math.round(rec) + '%</strong>) — consider keeping caffeine to one dose in the morning window. Your body is already managing higher adenosine load.';
+      } else {
+        insight = 'Low recovery (<strong>' + Math.round(rec) + '%</strong>) — avoid using caffeine to mask fatigue. It blocks adenosine without clearing sleep debt, worsening tomorrow\'s HRV.';
+      }
+    } else {
+      // Generic circadian advice
+      if (nh < caffStartH) {
+        const m = Math.round((caffStartH - nh) * 60);
+        insight = 'Cortisol is still elevated from your wake signal — wait <strong>' + m + ' more minutes</strong> before the first coffee. This preserves the cortisol boost and prevents early tolerance build.';
+      } else if (nh < caffStartH + 1) {
+        insight = 'Prime window: adenosine has cleared and cortisol is tapering — this is the <strong>optimal moment</strong> for your first caffeine dose for clean, sustained focus.';
+      } else if (nh < cutoff) {
+        insight = 'Still in the safe window. Remember: caffeine has a <strong>5–6 hour half-life</strong>. A coffee at ' + fmtH(nh) + ' means ~50% remains in your system at ' + fmtH(nh + CAFF_HALFLIFE_H) + '.';
+      } else {
+        insight = 'Past the cut-off. Caffeine now will still be at <strong>~25% potency</strong> when you try to sleep, suppressing melatonin and reducing restorative deep sleep stages.';
+      }
+    }
+    insightEl.innerHTML = insight;
+  }
+
+  // ── Boot ──────────────────────────────────────────────────
+  async function boot() {
+    // First pass with cached WHOOP (instant)
+    render(getWhoopData());
+
+    // Then fetch fresh WHOOP data (non-blocking)
+    const fresh = await fetchAndCacheWhoop();
+    if (fresh) render(fresh);
+
+    // Redraw canvas on resize
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => render(getWhoopData()), 120);
+    });
+
+    // Update needle every 60 s
+    setInterval(() => render(getWhoopData()), 60 * 1000);
+
+    // Redraw if WHOOP connects/disconnects on health.html while tab is open
+    window.addEventListener('storage', e => {
+      if (e.key === 'whoop_etl_cache_v1' || e.key === 'whoop_tokens_v1') render(getWhoopData());
+    });
+  }
+
+  if (document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else
+    boot();
+})();
+</script>
+</body>
+</html>
