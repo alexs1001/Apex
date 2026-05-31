@@ -683,6 +683,7 @@ body::after {
 .etl-track-wrap {
   position: relative;
   overflow: hidden;
+  min-height: 88px; /* prevent collapse-clipping the canvas */
 }
 .etl-track {
   position: relative;
@@ -1004,7 +1005,7 @@ body::after {
         <div class="etl-block-label">⚡ Energy levels</div>
         <div class="etl-track-wrap" style="position:relative;">
           <!-- SVG line chart replaces zone divs -->
-          <canvas id="etlEnergyCanvas" class="etl-energy-canvas"></canvas>
+          <canvas id="etlEnergyCanvas" class="etl-energy-canvas" width="600" height="88"></canvas>
           <!-- "now" needle overlay -->
           <div class="etl-needle" id="etlEnergyNeedle"></div>
         </div>
@@ -1040,7 +1041,7 @@ body::after {
         <div class="etl-track-wrap">
           <div class="etl-caff-track" id="etlCaffTrack">
             <!-- zones injected by JS -->
-            <canvas class="etl-caff-canvas" id="etlCaffCanvas"></canvas>
+            <canvas class="etl-caff-canvas" id="etlCaffCanvas" width="600" height="60"></canvas>
             <div class="etl-caff-needle" id="etlCaffNeedle"></div>
           </div>
         </div>
@@ -1745,7 +1746,94 @@ body::after {
 <!-- ═══════════════════════════════════════════════════════════
      ENERGY MAP ENGINE
 ═══════════════════════════════════════════════════════════ -->
-<script src="energy-map.js"></script>
+<script>
+/* energy-map.js v2 — inlined to avoid Vercel static routing issues */
+(function (root, factory) {
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = factory();
+  } else {
+    root.EnergyMap = factory();
+  }
+}(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const STEP      = 10 / 60;
+  const DAY_START = 8;
+  const DAY_END   = 24;
+  const SPAN      = DAY_END - DAY_START;
+  const N_POINTS  = Math.round(SPAN / STEP) + 1;
+
+  function clamp(v, lo, hi)  { return v < lo ? lo : v > hi ? hi : v; }
+  function sigmoid(x)        { return 1 / (1 + Math.exp(-x)); }
+
+  function buildEnergyCurve(params) {
+    params = params || {};
+
+    const wakeH      = typeof params.wakeHour   === 'number' ? params.wakeHour   : DAY_START;
+    const recovery   = typeof params.recovery   === 'number' ? params.recovery   : null;
+    const hrv        = typeof params.hrv        === 'number' ? params.hrv        : null;
+    const rhr        = typeof params.rhr        === 'number' ? params.rhr        : null;
+    const sleepDurMs = typeof params.sleepDurMs === 'number' ? params.sleepDurMs : null;
+    const sleepPerf  = typeof params.sleepPerf  === 'number' ? params.sleepPerf  : null;
+    const sleepDebt  = typeof params.sleepDebt  === 'number' ? params.sleepDebt  : 0;
+    const strain     = typeof params.strain     === 'number' ? params.strain     : null;
+
+    const hasWhoop = recovery != null || hrv != null || sleepPerf != null;
+
+    const rec_pct  = recovery != null ? recovery : 67;
+    const rec_base = 0.30 + (rec_pct / 100) * 0.65;
+    const rec_tau  = 12   + (rec_pct / 100) * 12;
+    function recSignal(t)  { return rec_base * Math.exp(-Math.max(0, t) / rec_tau); }
+
+    let hrv_ms = hrv;
+    if (hrv_ms == null && rhr != null) hrv_ms = clamp(120 - rhr, 20, 95);
+    if (hrv_ms == null) hrv_ms = 55;
+    const hrv_norm = clamp(hrv_ms / 70, 0, 1.15);
+    const hrv_tau  = 10 + hrv_norm * 11;
+    function hrvSignal(t)  { return hrv_norm * Math.exp(-Math.max(0, t) / hrv_tau); }
+
+    const perfFactor   = sleepPerf  != null ? clamp(sleepPerf  / 100, 0, 1) : 0.75;
+    const durationH    = sleepDurMs != null ? sleepDurMs / 3600000           : 7.0;
+    const durFactor    = clamp(durationH / 7.5, 0, 1);
+    const sleepQuality = 0.45 * perfFactor + 0.55 * durFactor;
+    const sleep_tau    = 8 + sleepQuality * 14;
+    function sleepSignal(t) { return sleepQuality * Math.exp(-Math.max(0, t) / sleep_tau); }
+
+    const debtDrag   = clamp(sleepDebt / 10, 0, 1) * 0.55;
+    const rhr_val    = rhr != null ? rhr : 60;
+    const rhr_factor = clamp((80 - rhr_val) / 40, 0, 1);
+    const strainNorm = strain != null ? clamp(strain / 21, 0, 1) : 0.38;
+    function strainDrag(t) { return strainNorm * 0.28 * sigmoid((t - 4) / 2); }
+    function circPerturb(t) { return 0.08 * Math.sin(2 * Math.PI * (t - wakeH - 4) / 24); }
+
+    const W_REC = 0.28, W_HRV = 0.25, W_SLP = 0.22, W_RHR = 0.10;
+
+    const points = new Float32Array(N_POINTS);
+    for (let i = 0; i < N_POINTS; i++) {
+      const t        = DAY_START + i * STEP;
+      const tw       = t - wakeH;
+      const core     = W_REC * recSignal(tw) + W_HRV * hrvSignal(tw) + W_SLP * sleepSignal(tw);
+      const rhr_mult = 0.70 + rhr_factor * W_RHR * 4.5;
+      points[i] = clamp(core * rhr_mult - debtDrag - strainDrag(tw) + circPerturb(t), 0.04, 1.0);
+    }
+
+    let peakIdx = 0;
+    for (let i = 1; i < N_POINTS; i++) { if (points[i] > points[peakIdx]) peakIdx = i; }
+
+    const meta = {
+      hasWhoop, sleepQuality, debtDrag, hrv_norm, rhr_factor, strainNorm, peakIdx,
+      recoveryBaseline: rec_base,
+      get peakHour()  { return DAY_START + this.peakIdx * STEP; },
+      get peakValue() { return points[this.peakIdx]; },
+      energyAt(h) { const idx = Math.round((h - DAY_START) / STEP); return points[clamp(idx, 0, N_POINTS - 1)]; },
+    };
+
+    return { points, meta, N_POINTS, STEP, DAY_START, DAY_END };
+  }
+
+  return { buildEnergyCurve, N_POINTS, STEP, DAY_START, DAY_END };
+}));
+</script>
 
 <!-- ═══════════════════════════════════════════════════════════
      ENERGY & CAFFEINE TIMELINE — self-contained module
@@ -1864,13 +1952,29 @@ body::after {
   // Draws the energy curve produced by energy-map.js onto a canvas element.
 
   function drawEnergyChart(canvas, curve, nowHour) {
-    const W = canvas.offsetWidth;
-    const H = canvas.offsetHeight;
-    if (!W || !H) return;
-    canvas.width  = W * (window.devicePixelRatio || 1);
-    canvas.height = H * (window.devicePixelRatio || 1);
+    // ── Robust dimension resolution (fixes Mobile Safari / flex-layout zero-size bug) ──
+    // offsetWidth/offsetHeight can return 0 before first paint inside flex/grid containers.
+    // getBoundingClientRect() is more reliable; fall back to parent width then a sensible default.
+    const rect = canvas.getBoundingClientRect();
+    let W = rect.width  || canvas.offsetWidth  || canvas.parentElement && canvas.parentElement.offsetWidth  || 0;
+    let H = rect.height || canvas.offsetHeight || 88; // CSS declares 88px height
+    if (!W || !H) {
+      // Last resort: try parent
+      const par = canvas.parentElement;
+      if (par) { W = W || par.getBoundingClientRect().width || par.offsetWidth; }
+    }
+    if (!W || !H) {
+      console.warn('[EnergyChart] canvas has zero dimensions, skipping draw', { W, H });
+      return;
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    // Set physical pixel size
+    canvas.width  = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
     const ctx = canvas.getContext('2d');
-    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    // Scale once — do NOT call ctx.scale again after setting canvas.width/height
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
 
     const { points, N_POINTS, STEP, DAY_START, DAY_END } = curve;
@@ -1892,13 +1996,25 @@ body::after {
 
     const nowX = xOf(nowHour);
 
+    // ── Debug logging (temporary — remove after confirming fix) ──────────
+    const ptArr = Array.from(points);
+    const minE  = Math.min.apply(null, ptArr);
+    const maxE  = Math.max.apply(null, ptArr);
+    console.log('[EnergyChart] canvas W:', W, 'H:', H, 'dpr:', dpr);
+    console.log('[EnergyChart] energy min:', minE.toFixed(3), 'max:', maxE.toFixed(3));
+    console.log('[EnergyChart] first 10 points:', ptArr.slice(0, 10).map(function(v){ return v.toFixed(3); }));
+    console.log('[EnergyChart] yOf(0.5)=', yOf(0.5).toFixed(1), ' xOf(12)=', xOf(12).toFixed(1));
+
     // Draw fill in two passes (past / future)
     function buildPath() {
       ctx.beginPath();
       for (let i = 0; i < N_POINTS; i++) {
         const h = DAY_START + i * STEP;
         const x = xOf(h);
-        const y = yOf(points[i]);
+        const rawVal = points[i];
+        // Guard against NaN/undefined (Float32Array edge cases or bad WHOOP data)
+        const val = (typeof rawVal === 'number' && isFinite(rawVal)) ? rawVal : 0.5;
+        const y = yOf(val);
         if (i === 0) ctx.moveTo(x, y);
         else         ctx.lineTo(x, y);
       }
@@ -2119,10 +2235,14 @@ body::after {
   // Draw caffeine half-life decay curve on canvas
   function drawCaffCurve(canvas, startH, peakDose) {
     const ctx = canvas.getContext('2d');
-    const W = canvas.offsetWidth, H = canvas.offsetHeight;
+    const rect = canvas.getBoundingClientRect();
+    const W = rect.width  || canvas.offsetWidth  || (canvas.parentElement && canvas.parentElement.offsetWidth) || 600;
+    const H = rect.height || canvas.offsetHeight || 60;
     if (!W || !H) return;
-    canvas.width  = W;
-    canvas.height = H;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width  = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
 
     // Draw a soft glow curve representing caffeine level over the day
@@ -2229,15 +2349,17 @@ body::after {
 
     // EnergyMap is loaded from energy-map.js; guard for fallback
     const EM = (typeof EnergyMap !== 'undefined') ? EnergyMap : null;
+    if (!EM) console.error('[EnergyChart] EnergyMap is undefined — energy-map.js failed to load (check network tab for 404)');
     let curve = null;
     if (EM) {
       curve = EM.buildEnergyCurve(energyParams);
     }
 
     // Draw energy chart
+    // Wrapped in rAF so the canvas is guaranteed to be laid out (fixes Mobile Safari zero-size bug)
     const eCanvas = document.getElementById('etlEnergyCanvas');
     if (eCanvas && curve) {
-      drawEnergyChart(eCanvas, curve, nh);
+      requestAnimationFrame(function() { drawEnergyChart(eCanvas, curve, nh); });
     }
 
     // Energy needle

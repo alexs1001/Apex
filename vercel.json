@@ -12,6 +12,10 @@
     {
       "src": "topbar.js",
       "use": "@vercel/static"
+    },
+    {
+      "src": "energy-map.js",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -21,6 +25,7 @@
     { "src": "/api/sync",           "dest": "/api/sync.js"           },
     { "src": "/(.*\\.html)",        "dest": "/$1"                    },
     { "src": "/topbar.js",          "dest": "/topbar.js"             },
+    { "src": "/energy-map.js",      "dest": "/energy-map.js"         },
     { "src": "/",                   "dest": "/index.html"            }
   ]
 }
