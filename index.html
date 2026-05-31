@@ -693,22 +693,48 @@ body::after {
   border: 1px solid rgba(255,255,255,0.05);
 }
 
-/* gradient energy fill */
-.etl-energy-fill {
-  position: absolute;
-  inset: 0;
+/* WHOOP energy line chart canvas */
+.etl-energy-canvas {
+  display: block;
+  width: 100%;
+  height: 88px;
   border-radius: 10px;
-  background: linear-gradient(90deg,
-    rgba(75,75,100,0.0)  0%,    /* sleep */
-    rgba(255,183,106,0.28) 15%, /* morning rise */
-    rgba(107,227,164,0.42) 30%, /* peak am */
-    rgba(107,227,164,0.55) 42%, /* peak */
-    rgba(242,192,99,0.35) 55%,  /* post-lunch dip */
-    rgba(242,192,99,0.18) 63%,  /* afternoon trough */
-    rgba(107,227,164,0.38) 72%, /* evening bounce */
-    rgba(226,93,122,0.25) 85%,  /* wind down */
-    rgba(75,75,100,0.0)  100%   /* sleep */
-  );
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  position: relative;
+}
+
+/* energy stats strip */
+.etl-energy-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+.etl-e-stat {
+  padding: 9px 10px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 10px;
+  text-align: center;
+}
+.etl-e-stat-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+.etl-e-stat-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 480px) {
+  .etl-energy-stats { grid-template-columns: repeat(2,1fr); }
 }
 
 /* zone segments drawn by JS */
@@ -973,20 +999,38 @@ body::after {
         </div>
       </div>
 
-      <!-- ── Energy track ── -->
+      <!-- ── Energy track (WHOOP line chart) ── -->
       <div class="etl-block">
         <div class="etl-block-label">⚡ Energy levels</div>
-        <div class="etl-track-wrap">
-          <div class="etl-track" id="etlEnergyTrack">
-            <div class="etl-energy-fill"></div>
-            <!-- zones injected by JS -->
-            <div class="etl-needle" id="etlEnergyNeedle"></div>
-          </div>
+        <div class="etl-track-wrap" style="position:relative;">
+          <!-- SVG line chart replaces zone divs -->
+          <canvas id="etlEnergyCanvas" class="etl-energy-canvas"></canvas>
+          <!-- "now" needle overlay -->
+          <div class="etl-needle" id="etlEnergyNeedle"></div>
         </div>
         <div class="etl-hours" id="etlEnergyHours"></div>
         <div class="etl-now-row">
           <div class="etl-now-pill" id="etlNowPill">—</div>
           <div class="etl-now-next" id="etlNowNext"></div>
+        </div>
+        <!-- energy stats strip -->
+        <div class="etl-energy-stats" id="etlEnergyStats" style="display:none">
+          <div class="etl-e-stat">
+            <div class="etl-e-stat-label">Now</div>
+            <div class="etl-e-stat-val" id="etlENow">—</div>
+          </div>
+          <div class="etl-e-stat">
+            <div class="etl-e-stat-label">Peak today</div>
+            <div class="etl-e-stat-val" id="etlEPeak">—</div>
+          </div>
+          <div class="etl-e-stat">
+            <div class="etl-e-stat-label">Peak at</div>
+            <div class="etl-e-stat-val" id="etlEPeakTime">—</div>
+          </div>
+          <div class="etl-e-stat">
+            <div class="etl-e-stat-label">Sleep quality</div>
+            <div class="etl-e-stat-val" id="etlESleepQ">—</div>
+          </div>
         </div>
       </div>
 
@@ -1699,6 +1743,11 @@ body::after {
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════
+     ENERGY MAP ENGINE
+═══════════════════════════════════════════════════════════ -->
+<script src="energy-map.js"></script>
+
+<!-- ═══════════════════════════════════════════════════════════
      ENERGY & CAFFEINE TIMELINE — self-contained module
      Reads WHOOP tokens from localStorage if connected, falls
      back to pure circadian estimates if not.
@@ -1774,49 +1823,244 @@ body::after {
     }
 
     try {
-      const [rec, sleep] = await Promise.all([
+      const [rec, sleep, cycle] = await Promise.all([
         fetch('/api/whoop-data?path=/recovery&limit=1', { headers: { Authorization: 'Bearer ' + tokens.access } }).then(r => r.json()).catch(() => null),
         fetch('/api/whoop-data?path=/activity/sleep&limit=1', { headers: { Authorization: 'Bearer ' + tokens.access } }).then(r => r.json()).catch(() => null),
+        fetch('/api/whoop-data?path=/cycle&limit=1', { headers: { Authorization: 'Bearer ' + tokens.access } }).then(r => r.json()).catch(() => null),
       ]);
 
-      const rs = rec && rec.records && rec.records[0] && rec.records[0].score;
+      const rs = rec   && rec.records   && rec.records[0]   && rec.records[0].score;
       const ss = sleep && sleep.records && sleep.records[0] && sleep.records[0].score;
+      const cs = cycle && cycle.records && cycle.records[0] && cycle.records[0].score;
+
+      // Sleep duration: total_in_bed_time minus awake
+      const sleepStages = ss && ss.stage_summary;
+      const totalBedMs  = sleepStages ? (sleepStages.total_in_bed_time_milli  || 0) : 0;
+      const totalAwakeMs= sleepStages ? (sleepStages.total_awake_time_milli   || 0) : 0;
+      const sleepDurMs  = totalBedMs > 0 ? (totalBedMs - totalAwakeMs) : null;
+
+      // Sleep debt: WHOOP v2 sleep endpoint includes sleep_needed.baseline_milli and
+      // sleep_needed.sleep_debt_milli if available; fall back to 0
+      const sleepDebtMs = ss ? (ss.sleep_debt_milli || 0) : 0;
 
       const cache = {
-        ts: Date.now(),
-        recovery:      rs ? (rs.recovery_score || 0) : null,
-        hrv:           rs ? (rs.hrv_rmssd_milli || null) : null,
-        rhr:           rs ? (rs.resting_heart_rate || null) : null,
-        sleepPerf:     ss ? (ss.sleep_performance_percentage || null) : null,
-        remMs:         ss && ss.stage_summary ? (ss.stage_summary.total_rem_sleep_time_milli || 0) : null,
-        deepMs:        ss && ss.stage_summary ? (ss.stage_summary.total_slow_wave_sleep_time_milli || 0) : null,
+        ts:         Date.now(),
+        recovery:   rs ? (rs.recovery_score        || 0)    : null,
+        hrv:        rs ? (rs.hrv_rmssd_milli        || null) : null,
+        rhr:        rs ? (rs.resting_heart_rate     || null) : null,
+        sleepPerf:  ss ? (ss.sleep_performance_percentage || null) : null,
+        sleepDurMs: sleepDurMs,
+        sleepDebt:  sleepDebtMs / 3600000,   // convert ms → hours
+        strain:     cs ? (cs.strain                || null) : null,
+        remMs:      sleepStages ? (sleepStages.total_rem_sleep_time_milli       || 0) : null,
+        deepMs:     sleepStages ? (sleepStages.total_slow_wave_sleep_time_milli || 0) : null,
       };
       localStorage.setItem('whoop_etl_cache_v1', JSON.stringify(cache));
       return cache;
     } catch { return null; }
   }
 
-  // ── Energy zones definition ───────────────────────────────
-  // Each zone: { label, from (hour), to (hour), color, textColor, level 0-1 }
-  // These are based on circadian research (Huberman, Walker, Roenneberg).
-  // WHOOP recovery score shifts the zone amplitudes.
-  function buildEnergyZones(wakeH, recoveryPct) {
-    // recovery 0-100 → multiplier 0.6-1.0
-    const mult = recoveryPct != null ? 0.6 + (recoveryPct / 100) * 0.4 : 0.85;
+  // ── WHOOP Energy Line Chart ───────────────────────────────
+  // Draws the energy curve produced by energy-map.js onto a canvas element.
 
-    return [
-      // Hour offsets are relative to wakeH
-      { label: 'Rising',      from: wakeH + 0,   to: wakeH + 1.5, level: 0.38 * mult, color: 'rgba(255,183,106,0.18)', text: '#FFB76A' },
-      { label: 'Peak',        from: wakeH + 1.5, to: wakeH + 4,   level: 0.92 * mult, color: 'rgba(107,227,164,0.22)', text: '#6BE3A4' },
-      { label: 'Sustained',   from: wakeH + 4,   to: wakeH + 6,   level: 0.82 * mult, color: 'rgba(107,227,164,0.14)', text: '#6BE3A4' },
-      { label: 'Dip',         from: wakeH + 6,   to: wakeH + 8,   level: 0.42 * mult, color: 'rgba(242,192,99,0.14)',  text: '#F2C063' },
-      { label: 'Rebound',     from: wakeH + 8,   to: wakeH + 11,  level: 0.72 * mult, color: 'rgba(107,227,164,0.15)', text: '#6BE3A4' },
-      { label: 'Wind down',   from: wakeH + 11,  to: wakeH + 13.5,level: 0.38 * mult, color: 'rgba(226,93,122,0.16)',  text: '#E25D7A' },
-      { label: 'Low',         from: wakeH + 13.5, to: DAY_END,    level: 0.18,         color: 'rgba(75,75,100,0.10)',   text: '#76746E' },
-    ].filter(z => z.from < DAY_END && z.to > DAY_START);
+  function drawEnergyChart(canvas, curve, nowHour) {
+    const W = canvas.offsetWidth;
+    const H = canvas.offsetHeight;
+    if (!W || !H) return;
+    canvas.width  = W * (window.devicePixelRatio || 1);
+    canvas.height = H * (window.devicePixelRatio || 1);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    ctx.clearRect(0, 0, W, H);
+
+    const { points, N_POINTS, STEP, DAY_START, DAY_END } = curve;
+    const SPAN = DAY_END - DAY_START;
+
+    function xOf(hour) { return (hour - DAY_START) / SPAN * W; }
+    function yOf(val)  { return H - 8 - val * (H - 16); }
+
+    // ── Gradient fill under curve ──────────────────────────
+    const fillGrad = ctx.createLinearGradient(0, 0, 0, H);
+    fillGrad.addColorStop(0,   'rgba(107,227,164,0.28)');
+    fillGrad.addColorStop(0.5, 'rgba(107,227,164,0.10)');
+    fillGrad.addColorStop(1,   'rgba(107,227,164,0.00)');
+
+    // Past portion: dimmer fill
+    const pastGrad = ctx.createLinearGradient(0, 0, 0, H);
+    pastGrad.addColorStop(0,   'rgba(120,120,140,0.18)');
+    pastGrad.addColorStop(1,   'rgba(120,120,140,0.00)');
+
+    const nowX = xOf(nowHour);
+
+    // Draw fill in two passes (past / future)
+    function buildPath() {
+      ctx.beginPath();
+      for (let i = 0; i < N_POINTS; i++) {
+        const h = DAY_START + i * STEP;
+        const x = xOf(h);
+        const y = yOf(points[i]);
+        if (i === 0) ctx.moveTo(x, y);
+        else         ctx.lineTo(x, y);
+      }
+    }
+
+    // Future fill
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(nowX, 0, W - nowX, H);
+    ctx.clip();
+    buildPath();
+    ctx.lineTo(W, H); ctx.lineTo(nowX, H); ctx.closePath();
+    ctx.fillStyle = fillGrad;
+    ctx.fill();
+    ctx.restore();
+
+    // Past fill
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, nowX, H);
+    ctx.clip();
+    buildPath();
+    ctx.lineTo(nowX, H); ctx.lineTo(0, H); ctx.closePath();
+    ctx.fillStyle = pastGrad;
+    ctx.fill();
+    ctx.restore();
+
+    // ── Line: past (muted) ─────────────────────────────────
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, nowX, H);
+    ctx.clip();
+    buildPath();
+    ctx.strokeStyle = 'rgba(180,180,200,0.40)';
+    ctx.lineWidth   = 1.8;
+    ctx.lineJoin    = 'round';
+    ctx.stroke();
+    ctx.restore();
+
+    // ── Line: future (bright) ──────────────────────────────
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(nowX, 0, W - nowX, H);
+    ctx.clip();
+    buildPath();
+    const lineGrad = ctx.createLinearGradient(nowX, 0, W, 0);
+    lineGrad.addColorStop(0,   '#6BE3A4');
+    lineGrad.addColorStop(0.5, '#6BE3A4');
+    lineGrad.addColorStop(1,   'rgba(107,227,164,0.30)');
+    ctx.strokeStyle = lineGrad;
+    ctx.lineWidth   = 2.2;
+    ctx.lineJoin    = 'round';
+    ctx.stroke();
+    ctx.restore();
+
+    // ── Horizontal reference lines ─────────────────────────
+    [0.33, 0.67].forEach(level => {
+      const y = yOf(level);
+      ctx.beginPath();
+      ctx.moveTo(0, y); ctx.lineTo(W, y);
+      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+      ctx.lineWidth   = 1;
+      ctx.setLineDash([3, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    // ── Current value dot ──────────────────────────────────
+    if (nowHour >= DAY_START && nowHour <= DAY_END) {
+      const idx    = Math.round((nowHour - DAY_START) / STEP);
+      const safeI  = Math.max(0, Math.min(N_POINTS - 1, idx));
+      const nowVal = points[safeI];
+      const nx     = xOf(nowHour);
+      const ny     = yOf(nowVal);
+      // glow
+      const grd = ctx.createRadialGradient(nx, ny, 0, nx, ny, 10);
+      grd.addColorStop(0,   'rgba(107,227,164,0.50)');
+      grd.addColorStop(1,   'rgba(107,227,164,0.00)');
+      ctx.beginPath();
+      ctx.arc(nx, ny, 10, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+      // dot
+      ctx.beginPath();
+      ctx.arc(nx, ny, 4, 0, Math.PI * 2);
+      ctx.fillStyle   = '#6BE3A4';
+      ctx.shadowColor = '#6BE3A4';
+      ctx.shadowBlur  = 8;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
   }
 
-  // ── Caffeine zones ────────────────────────────────────────
+  // ── Now pill ──────────────────────────────────────────────
+  function fmtPct(v) { return Math.round(v * 100) + '%'; }
+
+  function energyLabel(v) {
+    if (v >= 0.80) return { label: 'High',     color: '#6BE3A4', border: 'rgba(107,227,164,0.35)', bg: 'rgba(107,227,164,0.10)' };
+    if (v >= 0.55) return { label: 'Good',     color: '#6BE3A4', border: 'rgba(107,227,164,0.22)', bg: 'rgba(107,227,164,0.07)' };
+    if (v >= 0.38) return { label: 'Moderate', color: '#F2C063', border: 'rgba(242,192,99,0.35)',  bg: 'rgba(242,192,99,0.10)'  };
+    return               { label: 'Low',       color: '#FF8A8A', border: 'rgba(255,138,138,0.35)', bg: 'rgba(255,138,138,0.10)' };
+  }
+
+  function updateEnergyNowPill(curve, nowHour) {
+    const { points, N_POINTS, STEP, DAY_START, DAY_END, meta } = curve;
+    const idx     = Math.round((nowHour - DAY_START) / STEP);
+    const safeI   = Math.max(0, Math.min(N_POINTS - 1, idx));
+    const nowVal  = points[safeI];
+    const info    = energyLabel(nowVal);
+
+    const pill   = document.getElementById('etlNowPill');
+    const nextEl = document.getElementById('etlNowNext');
+
+    pill.textContent     = info.label;
+    pill.style.color     = info.color;
+    pill.style.borderColor = info.border;
+    pill.style.background  = info.bg;
+
+    // "next change" — find when energy crosses a threshold boundary
+    const currentBucket = Math.floor(nowVal / 0.33);
+    let nextChangeH = null;
+    for (let i = safeI + 1; i < N_POINTS; i++) {
+      const newBucket = Math.floor(points[i] / 0.33);
+      if (newBucket !== currentBucket) {
+        nextChangeH = DAY_START + i * STEP;
+        break;
+      }
+    }
+    if (nextChangeH && nextChangeH < DAY_END) {
+      const hoursUntil = nextChangeH - nowHour;
+      const minsUntil  = Math.round(hoursUntil * 60);
+      const nextInfo   = energyLabel(points[Math.round((nextChangeH - DAY_START) / STEP)]);
+      nextEl.innerHTML = 'Shifts to <strong style="color:' + nextInfo.color + '">' + nextInfo.label + '</strong> in '
+        + (minsUntil < 60 ? minsUntil + ' min' : Math.round(hoursUntil * 10) / 10 + ' h');
+    } else {
+      nextEl.textContent = '';
+    }
+  }
+
+  function updateEnergyStats(curve, nowHour) {
+    const statsEl = document.getElementById('etlEnergyStats');
+    if (!statsEl) return;
+    statsEl.style.display = '';
+
+    const { points, N_POINTS, STEP, DAY_START, meta } = curve;
+    const idx    = Math.max(0, Math.min(N_POINTS - 1, Math.round((nowHour - DAY_START) / STEP)));
+    const nowVal = points[idx];
+
+    document.getElementById('etlENow').textContent      = fmtPct(nowVal);
+    document.getElementById('etlEPeak').textContent     = fmtPct(meta.peakValue);
+    document.getElementById('etlEPeakTime').textContent = fmtH(meta.peakHour);
+    document.getElementById('etlESleepQ').textContent   = fmtPct(meta.sleepQuality);
+  }
+
+  // ── Energy needle (shared with caffeine needle logic) ─────
+  function placeNeedle(needleEl, nowHour) {
+    const n = pct(nowHour);
+    needleEl.style.left    = 'calc(' + n + '% - 1px)';
+    needleEl.style.display = (nowHour >= DAY_START && nowHour < DAY_END) ? 'block' : 'none';
+  }
+
+
   function buildCaffZones(wakeH, bedH) {
     const startH  = wakeH + CAFF_DELAY_H;
     const cutoffH = bedH  - CAFF_CUTOFF_H_BEFORE_BED;
@@ -1971,29 +2215,51 @@ body::after {
       sub.textContent   = 'Based on circadian rhythm · Connect WHOOP for personalised data';
     }
 
-    // Energy zones
-    const eZones = buildEnergyZones(wake, rec);
-    const eTrack = document.getElementById('etlEnergyTrack');
+    // ── WHOOP Energy Engine ────────────────────────────────
+    const energyParams = {
+      wakeHour:   wake,
+      recovery:   whoop ? whoop.recovery  : null,
+      hrv:        whoop ? whoop.hrv       : null,
+      rhr:        whoop ? whoop.rhr       : null,
+      sleepDurMs: whoop ? whoop.sleepDurMs: null,
+      sleepPerf:  whoop ? whoop.sleepPerf : null,
+      sleepDebt:  whoop ? (whoop.sleepDebt || 0) : 0,
+      strain:     whoop ? whoop.strain    : null,
+    };
+
+    // EnergyMap is loaded from energy-map.js; guard for fallback
+    const EM = (typeof EnergyMap !== 'undefined') ? EnergyMap : null;
+    let curve = null;
+    if (EM) {
+      curve = EM.buildEnergyCurve(energyParams);
+    }
+
+    // Draw energy chart
+    const eCanvas = document.getElementById('etlEnergyCanvas');
+    if (eCanvas && curve) {
+      drawEnergyChart(eCanvas, curve, nh);
+    }
+
+    // Energy needle
     const eNeedle = document.getElementById('etlEnergyNeedle');
-    renderZones(eTrack, eZones, eNeedle, nh);
+    if (eNeedle) {
+      // Position needle on the canvas wrapper
+      eCanvas.parentElement.style.position = 'relative';
+      eNeedle.style.position = 'absolute';
+      eNeedle.style.top      = '0';
+      eNeedle.style.bottom   = '0';
+      placeNeedle(eNeedle, nh);
+    }
 
     // Energy hour labels
     const eHourEls = document.getElementById('etlEnergyHours');
     const eHours = [8,10,12,14,16,18,20,22,24];
     renderHourLabels(eHourEls, eHours);
 
-    // Now pill
-    const curZone  = currentZoneInfo(eZones, nh);
-    const nextZone = nextZoneInfo(eZones, nh);
-    const pill     = document.getElementById('etlNowPill');
-    const nextEl   = document.getElementById('etlNowNext');
-    applyNowPill(pill, curZone);
-    if (nextZone && nextZone.from < DAY_END) {
-      const hoursUntil = nextZone.from - nh;
-      const minsUntil  = Math.round(hoursUntil * 60);
-      nextEl.innerHTML = 'Next: <strong>' + nextZone.label + '</strong> in ' + (minsUntil < 60 ? minsUntil + ' min' : Math.round(hoursUntil * 10)/10 + ' h') + ' · ' + fmtH(nextZone.from);
-    } else {
-      nextEl.textContent = '';
+    // Now pill + stats
+    if (curve) {
+      updateEnergyNowPill(curve, nh);
+      updateEnergyStats(curve, nh);
     }
 
     // Caffeine zones
