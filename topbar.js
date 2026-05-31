@@ -10,8 +10,8 @@
   // ─── Supabase config ───────────────────────────────────────
   // Replace these with your actual project values.
   // The anon/publishable key is safe to commit — RLS protects your data.
-  const SUPABASE_URL = 'PASTE-YOUR-SUPABASE-PROJECT-URL-HERE';
-  const SUPABASE_KEY = 'PASTE-YOUR-SUPABASE-PUBLISHABLE-KEY-HERE';
+  const SUPABASE_URL = 'https://yyflaxgppciotxmrnycl.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_q3aHvOHjMFX38P04EGd9ng_CDab7fkM';
 
   // ─── CSS ───────────────────────────────────────────────────
   const css = `
