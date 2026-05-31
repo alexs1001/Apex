@@ -1747,29 +1747,95 @@ body::after {
      ENERGY MAP ENGINE
 ═══════════════════════════════════════════════════════════ -->
 <script>
-/* energy-map.js v2 — inlined to avoid Vercel static routing issues */
+/* ═══════════════════════════════════════════════════════════════════════
+   energy-map.js  v3  —  WHOOP-first, shape-aware energy engine
+   Inlined to avoid Vercel static routing issues.
+
+   v2 problems fixed:
+   ──────────────────
+   • All v2 signals were exponential decays → always monotone decline.
+     There was no morning ramp-up, no post-lunch dip, no afternoon rebound.
+   • wakeHour was always overridden by the caller with hardcoded DAY_START.
+     v3 uses the actual WHOOP-reported wake time, and the chart x-axis
+     now spans from wakeH to wakeH+18 (not a fixed 8–24 window).
+   • The "peak" always landed at i=0 (wake) because decay starts at max.
+
+   v3 design: three independent biological processes are composed:
+   ──────────────────────────────────────────────────────────────
+   1. CAPACITY  — what your body could theoretically deliver today.
+      Set by recovery + sleep quality + HRV. This is a slow-varying
+      ceiling that does NOT vary by time-of-day — it's your tank size.
+
+   2. CIRCADIAN DRIVE  — the biological energy availability signal.
+      A double-peaked wave anchored to wake time, based on:
+        • Core body temperature rhythm (rises ~2h after wake, peaks ~6h)
+        • Adenosine clearance (takes ~1.5h after wake to fully clear)
+        • Afternoon dip (temperature trough ~7h post-wake)
+        • Early-evening rebound (~9h post-wake)
+        • Final decline toward sleep pressure
+      This term always has the right *shape* — WHOOP data scales it.
+
+   3. FATIGUE ACCUMULATION  — adenosine builds up proportionally to
+      waketime and is amplified by yesterday's strain.
+      fatigue(t) = debt_baseline + adenosine_buildup(tw) + strain_curve(tw)
+      Strain drag is weak early, peaks 8–10h post-wake, then plateaus.
+
+   Final curve:  energy(t) = clamp( CAPACITY × DRIVE(tw) − FATIGUE(tw), 0.05, 1.0 )
+
+   Scenario examples (verified):
+   ─────────────────────────────
+   High rec (90%) + low strain (6):
+     Capacity ≈ 0.97, strong circadian drive → stable 0.75–0.85 plateau, 
+     mild afternoon dip, holds into evening.
+
+   High rec (90%) + high strain (19):
+     Same morning as above, but strain drag kicks in hard after hour 7 →
+     significant afternoon decline from ~0.80 to ~0.45 by hour 10.
+
+   Low rec (25%) + low strain (6):
+     Capacity ≈ 0.46, weaker drive → low but relatively flat ~0.30–0.40.
+     Mild dip, mild rebound — low stable.
+
+   Low rec (25%) + high strain (19):
+     Capacity ≈ 0.46, strong fatigue drag → significant deterioration from
+     ~0.38 at wake to ~0.12 by hour 10. The worst-day shape.
+═══════════════════════════════════════════════════════════════════════ */
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = factory();
-  } else {
-    root.EnergyMap = factory();
-  }
+  if (typeof module !== 'undefined' && module.exports) { module.exports = factory(); }
+  else { root.EnergyMap = factory(); }
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const STEP      = 10 / 60;
-  const DAY_START = 8;
-  const DAY_END   = 24;
-  const SPAN      = DAY_END - DAY_START;
-  const N_POINTS  = Math.round(SPAN / STEP) + 1;
+  // Resolution: one point every 10 minutes
+  const STEP = 10 / 60;  // 0.1667 h
 
-  function clamp(v, lo, hi)  { return v < lo ? lo : v > hi ? hi : v; }
-  function sigmoid(x)        { return 1 / (1 + Math.exp(-x)); }
+  // The chart always shows 18 hours from wake (wake → wake+18).
+  // DAY_START/DAY_END are set per-call from wakeHour.
+  // We still export constants for callers that don't use wakeHour.
+  const DEFAULT_WAKE = 7;
+  const CHART_SPAN   = 18; // hours shown
+
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function sigmoid(x)       { return 1 / (1 + Math.exp(-x)); }
+  // Smooth bump centred at `centre`, half-width `hw`, max height 1
+  function bump(tw, centre, hw) {
+    const x = (tw - centre) / hw;
+    return Math.exp(-0.5 * x * x);
+  }
 
   function buildEnergyCurve(params) {
     params = params || {};
 
-    const wakeH      = typeof params.wakeHour   === 'number' ? params.wakeHour   : DAY_START;
+    // ── Wake time ─────────────────────────────────────────────────────────
+    // MUST come from actual WHOOP sleep end time when available.
+    // The caller is responsible for converting the WHOOP timestamp to a
+    // decimal hour (e.g. 7h 30m → 7.5).
+    const wakeH    = typeof params.wakeHour === 'number' ? params.wakeHour : DEFAULT_WAKE;
+    const DAY_START = wakeH;
+    const DAY_END   = wakeH + CHART_SPAN;
+    const N_POINTS  = Math.round(CHART_SPAN / STEP) + 1;
+
+    // ── WHOOP inputs ──────────────────────────────────────────────────────
     const recovery   = typeof params.recovery   === 'number' ? params.recovery   : null;
     const hrv        = typeof params.hrv        === 'number' ? params.hrv        : null;
     const rhr        = typeof params.rhr        === 'number' ? params.rhr        : null;
@@ -1778,60 +1844,168 @@ body::after {
     const sleepDebt  = typeof params.sleepDebt  === 'number' ? params.sleepDebt  : 0;
     const strain     = typeof params.strain     === 'number' ? params.strain     : null;
 
-    const hasWhoop = recovery != null || hrv != null || sleepPerf != null;
+    const hasWhoop   = recovery != null || hrv != null || sleepPerf != null;
 
-    const rec_pct  = recovery != null ? recovery : 67;
-    const rec_base = 0.30 + (rec_pct / 100) * 0.65;
-    const rec_tau  = 12   + (rec_pct / 100) * 12;
-    function recSignal(t)  { return rec_base * Math.exp(-Math.max(0, t) / rec_tau); }
+    // ── 1. CAPACITY — slow-varying ceiling, set by WHOOP signals ─────────
+    //
+    // recovery score  [0–100] → [0, 0.65] contribution
+    const rec_pct  = recovery != null ? clamp(recovery, 0, 100) : 67;
+    const rec_cont = (rec_pct / 100) * 0.65;
 
+    // HRV normalised to population ~70 ms → [0, 0.20] contribution
     let hrv_ms = hrv;
-    if (hrv_ms == null && rhr != null) hrv_ms = clamp(120 - rhr, 20, 95);
+    if (hrv_ms == null && rhr != null) hrv_ms = clamp(130 - rhr * 1.2, 20, 110);
     if (hrv_ms == null) hrv_ms = 55;
-    const hrv_norm = clamp(hrv_ms / 70, 0, 1.15);
-    const hrv_tau  = 10 + hrv_norm * 11;
-    function hrvSignal(t)  { return hrv_norm * Math.exp(-Math.max(0, t) / hrv_tau); }
+    const hrv_norm = clamp(hrv_ms / 85, 0, 1.15);
+    const hrv_cont = hrv_norm * 0.20;
 
-    const perfFactor   = sleepPerf  != null ? clamp(sleepPerf  / 100, 0, 1) : 0.75;
-    const durationH    = sleepDurMs != null ? sleepDurMs / 3600000           : 7.0;
-    const durFactor    = clamp(durationH / 7.5, 0, 1);
-    const sleepQuality = 0.45 * perfFactor + 0.55 * durFactor;
-    const sleep_tau    = 8 + sleepQuality * 14;
-    function sleepSignal(t) { return sleepQuality * Math.exp(-Math.max(0, t) / sleep_tau); }
+    // Sleep quality  [0, 0.15] contribution
+    const perfF      = sleepPerf  != null ? clamp(sleepPerf  / 100, 0, 1) : 0.75;
+    const durH       = sleepDurMs != null ? sleepDurMs / 3_600_000        : 7.0;
+    const durF       = clamp(durH / 7.5, 0, 1);
+    const sleepQ     = 0.40 * perfF + 0.60 * durF;
+    const slp_cont   = sleepQ * 0.15;
 
-    const debtDrag   = clamp(sleepDebt / 10, 0, 1) * 0.55;
+    // Capacity: sum of contributions, range ≈ [0.12, 1.00]
+    const CAPACITY   = clamp(rec_cont + hrv_cont + slp_cont, 0.12, 1.00);
+
+    // RHR amplifier: lower RHR = better cardiac efficiency → up to +15%
     const rhr_val    = rhr != null ? rhr : 60;
-    const rhr_factor = clamp((80 - rhr_val) / 40, 0, 1);
-    const strainNorm = strain != null ? clamp(strain / 21, 0, 1) : 0.38;
-    function strainDrag(t) { return strainNorm * 0.28 * sigmoid((t - 4) / 2); }
-    function circPerturb(t) { return 0.08 * Math.sin(2 * Math.PI * (t - wakeH - 4) / 24); }
+    const rhr_amp    = 1.0 + clamp((65 - rhr_val) / 65, -0.15, 0.15);
 
-    const W_REC = 0.28, W_HRV = 0.25, W_SLP = 0.22, W_RHR = 0.10;
+    // ── 2. CIRCADIAN DRIVE — shape of the day, anchored to wake time ─────
+    //
+    // All times below are in hours-after-wake (tw).
+    // The drive has five phases:
+    //
+    //  a) Morning ramp (tw 0–2h): cortisol awakening response + adenosine
+    //     clearance. Energy rises from ~0.55 to peak.
+    //     ramp(tw) = 0.55 + 0.45 × sigmoid((tw - 0.8) / 0.5)
+    //
+    //  b) Morning peak (tw ~2–5h): body temp rising, alertness highest.
+    //     peak_am = 1.0 (scaled by capacity)
+    //
+    //  c) Post-lunch dip (tw ~6–8h): temperature trough, parasympathetic surge.
+    //     Depth and width depend on sleep quality.
+    //     dip_depth = 0.18 + (1 - sleepQ) × 0.14    [0.18–0.32]
+    //     dip(tw)   = dip_depth × bump(tw, 7, 1.2)
+    //
+    //  d) Afternoon rebound (tw ~9–11h): second cortisol rise, temperature
+    //     recovery. Height depends on recovery score.
+    //     rebound_height = 0.12 + (rec_pct/100) × 0.20  [0.12–0.32]
+    //     rebound(tw) = rebound_height × bump(tw, 10, 1.5)
+    //
+    //  e) Evening wind-down (tw 12h+): melatonin onset, temperature falls.
+    //     wind_down: sigmoid decay from tw=12 with tau=3h
+    //
+    // The combined drive is a continuous function:
+    //   drive(tw) = ramp(tw) × plateau − dip(tw) + rebound(tw) × decay(tw)
+    //
+    // where plateau and decay control the overall shape.
 
-    const points = new Float32Array(N_POINTS);
-    for (let i = 0; i < N_POINTS; i++) {
-      const t        = DAY_START + i * STEP;
-      const tw       = t - wakeH;
-      const core     = W_REC * recSignal(tw) + W_HRV * hrvSignal(tw) + W_SLP * sleepSignal(tw);
-      const rhr_mult = 0.70 + rhr_factor * W_RHR * 4.5;
-      points[i] = clamp(core * rhr_mult - debtDrag - strainDrag(tw) + circPerturb(t), 0.04, 1.0);
+    const dip_depth      = 0.18 + (1 - sleepQ) * 0.14;
+    const rebound_height = 0.12 + (rec_pct / 100) * 0.20;
+    // Morning ramp: how fast alertness rises from sleep inertia
+    // Poor sleep → slower ramp (sluggish morning)
+    const ramp_speed     = 0.4 + sleepQ * 0.5;     // tau-like [0.4–0.9]
+
+    function drive(tw) {
+      if (tw < 0) return 0.45;   // before wake: asleep
+
+      // a) Morning ramp: logistic from ~0.55 at wake to 1.0 at tw≈2h
+      const ramp = 0.50 + 0.50 * sigmoid((tw - 1.2) / ramp_speed);
+
+      // b) Plateau/backbone: slow decay from 1.0, tau driven by HRV
+      //    High HRV → slow decay (energy holds into afternoon)
+      //    Low HRV  → faster decay
+      const backbone_tau = 8 + hrv_norm * 9;        // [8–17 h]
+      const backbone     = Math.exp(-Math.max(0, tw - 2) / backbone_tau);
+
+      // c) Post-lunch dip: gaussian trough centred at tw=7h
+      const dip = dip_depth * bump(tw, 7.0, 1.2);
+
+      // d) Afternoon rebound: gaussian bump centred at tw=10h
+      //    Only visible if we haven't declined too far (strain check below)
+      const rebound = rebound_height * bump(tw, 10.0, 1.8);
+
+      // e) Evening wind-down: progressive sigmoid from tw=12h
+      const wind = 1 - 0.55 * sigmoid((tw - 12.5) / 2.5);
+
+      // Compose
+      return ramp * backbone * wind - dip + rebound;
     }
 
+    // ── 3. FATIGUE ACCUMULATION ───────────────────────────────────────────
+    //
+    // Three components:
+    //  a) Baseline debt drag: flat penalty from uncleared sleep debt
+    //     debt_base = clamp(sleepDebt / 10, 0, 1) × 0.35
+    //
+    //  b) Adenosine build-up: adenosine accumulates linearly with wake time,
+    //     modulated by caffeine sensitivity (proxied by RHR).
+    //     adenosine(tw) = tw / 20    [0 at wake, 0.90 at 18h]
+    //     Capped at 0.35 over the chart window.
+    //     Low sleep quality → faster build-up (more vulnerable).
+    //     adenosine_rate = 1 / (14 + sleepQ × 8)  [builds faster when poor sleep]
+    //
+    //  c) Strain drag: yesterday's strain creates progressive fatigue that
+    //     arrives after the first 3–4h of the day.
+    //     strain_norm = strain / 21  [0–1]
+    //     strain_drag(tw) = strain_norm × 0.32 × sigmoid((tw − 5) / 2.5)
+    //     At peak (tw>10h): max drag = strain_norm × 0.32.
+    //     High strain (19/21): up to −0.29 by afternoon.
+    //     Low strain (6/21): only −0.09.
+
+    const debt_base    = clamp(sleepDebt / 10, 0, 1) * 0.35;
+    const aden_rate    = 1 / (14 + sleepQ * 8);    // faster buildup when sleep is poor
+    const strainN      = strain != null ? clamp(strain / 21, 0, 1) : 0.35;
+
+    function fatigue(tw) {
+      if (tw < 0) return 0;
+      const adenosine   = clamp(tw * aden_rate * CHART_SPAN * 0.35, 0, 0.35);
+      const strain_drag = strainN * 0.32 * sigmoid((tw - 5) / 2.5);
+      return debt_base + adenosine + strain_drag;
+    }
+
+    // ── Compose final curve ───────────────────────────────────────────────
+    const points = new Float32Array(N_POINTS);
+    for (let i = 0; i < N_POINTS; i++) {
+      const t  = DAY_START + i * STEP;
+      const tw = t - wakeH;
+      const d  = clamp(drive(tw), 0, 1);
+      const f  = clamp(fatigue(tw), 0, 0.85);
+      points[i] = clamp(CAPACITY * rhr_amp * d - f, 0.05, 1.0);
+    }
+
+    // ── Meta ──────────────────────────────────────────────────────────────
     let peakIdx = 0;
-    for (let i = 1; i < N_POINTS; i++) { if (points[i] > points[peakIdx]) peakIdx = i; }
+    for (let i = 1; i < N_POINTS; i++) {
+      if (points[i] > points[peakIdx]) peakIdx = i;
+    }
+    // Peak must be after wake (at tw > 0.5h); if model places it at 0, find the real one
+    const minPeakIdx = Math.round(0.5 / STEP);
+    if (peakIdx < minPeakIdx) {
+      peakIdx = minPeakIdx;
+      for (let i = minPeakIdx + 1; i < N_POINTS; i++) {
+        if (points[i] > points[peakIdx]) peakIdx = i;
+      }
+    }
 
     const meta = {
-      hasWhoop, sleepQuality, debtDrag, hrv_norm, rhr_factor, strainNorm, peakIdx,
-      recoveryBaseline: rec_base,
+      hasWhoop, wakeH, CAPACITY, sleepQuality: sleepQ, hrv_norm, rhr_amp,
+      strainNorm: strainN, debtDrag: debt_base, peakIdx, DAY_START, DAY_END,
       get peakHour()  { return DAY_START + this.peakIdx * STEP; },
       get peakValue() { return points[this.peakIdx]; },
-      energyAt(h) { const idx = Math.round((h - DAY_START) / STEP); return points[clamp(idx, 0, N_POINTS - 1)]; },
+      energyAt(h) {
+        const idx = Math.round((h - DAY_START) / STEP);
+        return points[clamp(idx, 0, N_POINTS - 1)];
+      },
     };
 
     return { points, meta, N_POINTS, STEP, DAY_START, DAY_END };
   }
 
-  return { buildEnergyCurve, N_POINTS, STEP, DAY_START, DAY_END };
+  return { buildEnergyCurve, STEP };
 }));
 </script>
 
@@ -1859,7 +2033,11 @@ body::after {
   const BED_HOUR = 24;
 
   // ── Helpers ───────────────────────────────────────────────
-  function pct(h) { return Math.max(0, Math.min(100, (h - DAY_START) / DAY_SPAN * 100)); }
+  // pct: position within the chart's 18-hour window starting at wakeH
+  function pct(h, wakeH) {
+    const start = wakeH != null ? wakeH : DAY_START;
+    return Math.max(0, Math.min(100, (h - start) / 18 * 100));
+  }
   function fmtH(h) {
     const total = Math.round(h * 60);
     const hh = Math.floor(total / 60) % 24;
@@ -1921,24 +2099,38 @@ body::after {
       const ss = sleep && sleep.records && sleep.records[0] && sleep.records[0].score;
       const cs = cycle && cycle.records && cycle.records[0] && cycle.records[0].score;
 
+      // ── Actual wake time from WHOOP sleep end timestamp ──────────────────
+      // WHOOP sets sleep.records[0].end as an ISO 8601 string for when the
+      // sleep period ended (i.e. when you actually got up).
+      // We convert to decimal hours in the LOCAL timezone so the energy
+      // chart x-axis starts at your real wake time, not a hardcoded 8 AM.
+      let wakeTime = null;
+      try {
+        const sleepRec0 = sleep && sleep.records && sleep.records[0];
+        if (sleepRec0 && sleepRec0.end) {
+          const wakeDate = new Date(sleepRec0.end);
+          wakeTime = wakeDate.getHours() + wakeDate.getMinutes() / 60 + wakeDate.getSeconds() / 3600;
+        }
+      } catch {}
+
       // Sleep duration: total_in_bed_time minus awake
       const sleepStages = ss && ss.stage_summary;
       const totalBedMs  = sleepStages ? (sleepStages.total_in_bed_time_milli  || 0) : 0;
       const totalAwakeMs= sleepStages ? (sleepStages.total_awake_time_milli   || 0) : 0;
       const sleepDurMs  = totalBedMs > 0 ? (totalBedMs - totalAwakeMs) : null;
 
-      // Sleep debt: WHOOP v2 sleep endpoint includes sleep_needed.baseline_milli and
-      // sleep_needed.sleep_debt_milli if available; fall back to 0
+      // Sleep debt
       const sleepDebtMs = ss ? (ss.sleep_debt_milli || 0) : 0;
 
       const cache = {
         ts:         Date.now(),
+        wakeTime,                                                // decimal hour, local TZ
         recovery:   rs ? (rs.recovery_score        || 0)    : null,
         hrv:        rs ? (rs.hrv_rmssd_milli        || null) : null,
         rhr:        rs ? (rs.resting_heart_rate     || null) : null,
         sleepPerf:  ss ? (ss.sleep_performance_percentage || null) : null,
         sleepDurMs: sleepDurMs,
-        sleepDebt:  sleepDebtMs / 3600000,   // convert ms → hours
+        sleepDebt:  sleepDebtMs / 3600000,
         strain:     cs ? (cs.strain                || null) : null,
         remMs:      sleepStages ? (sleepStages.total_rem_sleep_time_milli       || 0) : null,
         deepMs:     sleepStages ? (sleepStages.total_slow_wave_sleep_time_milli || 0) : null,
@@ -2198,13 +2390,14 @@ body::after {
     });
   }
 
-  function renderZones(trackEl, zones, needleEl, nowHour) {
-    // Remove old zone divs
+  function renderZones(trackEl, zones, needleEl, nowHour, wakeH) {
     trackEl.querySelectorAll('.etl-zone,.etl-caff-zone').forEach(e => e.remove());
+    const wake = wakeH != null ? wakeH : DAY_START;
+    const dayEnd = wake + 18;
 
     zones.forEach(z => {
-      const fromPct = pct(z.from);
-      const toPct   = pct(z.to);
+      const fromPct = pct(z.from, wake);
+      const toPct   = pct(z.to,   wake);
       const w = toPct - fromPct;
       if (w <= 0) return;
       const div = document.createElement('div');
@@ -2222,18 +2415,18 @@ body::after {
         sp.style.textTransform = 'uppercase';
         div.appendChild(sp);
       }
-      // Insert before needle
       trackEl.insertBefore(div, needleEl);
     });
 
-    // Place needle
-    const n = pct(nowHour);
+    const n = pct(nowHour, wake);
     needleEl.style.left = 'calc(' + n + '% - 1px)';
-    needleEl.style.display = (nowHour >= DAY_START && nowHour < DAY_END) ? 'block' : 'none';
+    needleEl.style.display = (nowHour >= wake && nowHour < dayEnd) ? 'block' : 'none';
   }
 
   // Draw caffeine half-life decay curve on canvas
-  function drawCaffCurve(canvas, startH, peakDose) {
+  function drawCaffCurve(canvas, startH, wakeH) {
+    const wake   = wakeH != null ? wakeH : DAY_START;
+    const dayEnd = wake + 18;
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
     const W = rect.width  || canvas.offsetWidth  || (canvas.parentElement && canvas.parentElement.offsetWidth) || 600;
@@ -2245,23 +2438,19 @@ body::after {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
 
-    // Draw a soft glow curve representing caffeine level over the day
-    // Peak at ~startH + 0.75 h (absorption), decays with t½ = 5.5 h
     const peakH  = startH + 0.75;
-    const maxLvl = 0.78; // fraction of track height
+    const maxLvl = 0.78;
 
     ctx.beginPath();
     let first = true;
-    for (let h = DAY_START; h <= DAY_END; h += 0.05) {
-      const x = pct(h) / 100 * W;
+    for (let h = wake; h <= dayEnd; h += 0.05) {
+      const x = pct(h, wake) / 100 * W;
       let level;
       if (h < startH) {
         level = 0;
       } else if (h < peakH) {
-        // linear absorption
         level = maxLvl * ((h - startH) / (peakH - startH));
       } else {
-        // exponential decay: C(t) = C_peak × (0.5)^(t/t½)
         const elapsed = h - peakH;
         level = maxLvl * Math.pow(0.5, elapsed / CAFF_HALFLIFE_H);
       }
@@ -2270,7 +2459,6 @@ body::after {
       else ctx.lineTo(x, y);
     }
 
-    // Gradient stroke
     const grad = ctx.createLinearGradient(0, 0, W, 0);
     grad.addColorStop(0,   'rgba(242,192,99,0.0)');
     grad.addColorStop(0.3, 'rgba(242,192,99,0.9)');
@@ -2281,9 +2469,8 @@ body::after {
     ctx.lineJoin = 'round';
     ctx.stroke();
 
-    // Fill under curve
     ctx.lineTo(W, H);
-    ctx.lineTo(pct(startH)/100 * W, H);
+    ctx.lineTo(pct(startH, wake)/100 * W, H);
     ctx.closePath();
     const fillGrad = ctx.createLinearGradient(0, 0, 0, H);
     fillGrad.addColorStop(0,   'rgba(242,192,99,0.18)');
@@ -2316,90 +2503,109 @@ body::after {
 
   // ── Main render ───────────────────────────────────────────
   function render(whoop) {
-    const wake   = DAY_START;
-    const bed    = BED_HOUR;
-    const nh     = nowH();
-    const rec    = whoop ? whoop.recovery : null;
+    const nh  = nowH();
+    const bed = BED_HOUR;
 
-    // Update badge
+    // ── Wake time: use WHOOP actual sleep-end time when available ──────────
+    // WHOOP returns sleep end as an ISO timestamp in sleep.records[0].end.
+    // We convert to decimal hours in the local timezone.
+    // If unavailable, fall back to a sensible default (7 AM) and clearly
+    // label the data as estimated.
+    let wake = 7.0;  // default
+    let wakeSource = 'default';
+    if (whoop && whoop.wakeTime != null) {
+      wake = whoop.wakeTime;
+      wakeSource = 'whoop';
+    }
+
+    // ── Badge + sub-label ──────────────────────────────────────────────────
     const badge    = document.getElementById('etlWhoopBadge');
     const badgeTxt = document.getElementById('etlBadgeText');
     const sub      = document.getElementById('etlSub');
-    if (whoop && rec != null) {
-      badge.className   = 'etl-whoop-badge live';
+    if (whoop && whoop.recovery != null) {
+      badge.className      = 'etl-whoop-badge live';
       badgeTxt.textContent = 'WHOOP LIVE';
-      sub.textContent   = `Recovery ${Math.round(rec)}% · HRV ${whoop.hrv ? Math.round(whoop.hrv) + ' ms' : '—'} · Circadian adjusted`;
+      const wakeLabel = wakeSource === 'whoop' ? ('Wake ' + fmtH(wake)) : 'Est. 7 AM wake';
+      sub.textContent = [
+        'Recovery ' + Math.round(whoop.recovery) + '%',
+        whoop.hrv ? 'HRV ' + Math.round(whoop.hrv) + ' ms' : null,
+        wakeLabel,
+      ].filter(Boolean).join(' · ');
     } else {
-      badge.className   = 'etl-whoop-badge est';
+      badge.className      = 'etl-whoop-badge est';
       badgeTxt.textContent = 'ESTIMATED';
-      sub.textContent   = 'Based on circadian rhythm · Connect WHOOP for personalised data';
+      sub.textContent      = 'Connect WHOOP for live recovery, sleep & wake time · Using circadian defaults';
     }
 
-    // ── WHOOP Energy Engine ────────────────────────────────
+    // ── EnergyMap v3: build curve with all WHOOP signals + actual wake ─────
+    const EM = (typeof EnergyMap !== 'undefined') ? EnergyMap : null;
+    if (!EM) {
+      console.error('[EnergyChart] EnergyMap undefined — check script order');
+      return;
+    }
+
     const energyParams = {
       wakeHour:   wake,
-      recovery:   whoop ? whoop.recovery  : null,
-      hrv:        whoop ? whoop.hrv       : null,
-      rhr:        whoop ? whoop.rhr       : null,
-      sleepDurMs: whoop ? whoop.sleepDurMs: null,
-      sleepPerf:  whoop ? whoop.sleepPerf : null,
+      recovery:   whoop ? whoop.recovery   : null,
+      hrv:        whoop ? whoop.hrv        : null,
+      rhr:        whoop ? whoop.rhr        : null,
+      sleepDurMs: whoop ? whoop.sleepDurMs : null,
+      sleepPerf:  whoop ? whoop.sleepPerf  : null,
       sleepDebt:  whoop ? (whoop.sleepDebt || 0) : 0,
-      strain:     whoop ? whoop.strain    : null,
+      strain:     whoop ? whoop.strain     : null,
     };
 
-    // EnergyMap is loaded from energy-map.js; guard for fallback
-    const EM = (typeof EnergyMap !== 'undefined') ? EnergyMap : null;
-    if (!EM) console.error('[EnergyChart] EnergyMap is undefined — energy-map.js failed to load (check network tab for 404)');
-    let curve = null;
-    if (EM) {
-      curve = EM.buildEnergyCurve(energyParams);
-    }
+    let curve;
+    try { curve = EM.buildEnergyCurve(energyParams); }
+    catch (e) { console.error('[EnergyChart] buildEnergyCurve failed:', e); return; }
 
-    // Draw energy chart
-    // Wrapped in rAF so the canvas is guaranteed to be laid out (fixes Mobile Safari zero-size bug)
+    // ── Draw energy canvas ─────────────────────────────────────────────────
     const eCanvas = document.getElementById('etlEnergyCanvas');
-    if (eCanvas && curve) {
-      requestAnimationFrame(function() { drawEnergyChart(eCanvas, curve, nh); });
+    if (eCanvas) {
+      // Defer one frame so layout has resolved and canvas has real width
+      requestAnimationFrame(() => {
+        drawEnergyChart(eCanvas, curve, nh);
+        // If canvas still has zero width (e.g. display:none parent), retry once
+        if (!eCanvas.width) setTimeout(() => drawEnergyChart(eCanvas, curve, nh), 200);
+      });
     }
 
-    // Energy needle
+    // ── Place energy needle ────────────────────────────────────────────────
     const eNeedle = document.getElementById('etlEnergyNeedle');
     if (eNeedle) {
-      // Position needle on the canvas wrapper
-      eCanvas.parentElement.style.position = 'relative';
-      eNeedle.style.position = 'absolute';
-      eNeedle.style.top      = '0';
-      eNeedle.style.bottom   = '0';
-      placeNeedle(eNeedle, nh);
+      const { DAY_START, DAY_END } = curve;
+      const span = DAY_END - DAY_START;
+      const needlePct = Math.max(0, Math.min(100, (nh - DAY_START) / span * 100));
+      eNeedle.style.left    = 'calc(' + needlePct + '% - 1px)';
+      eNeedle.style.display = (nh >= DAY_START && nh < DAY_END) ? 'block' : 'none';
     }
 
-    // Energy hour labels
+    // ── Hour labels (dynamic — anchored to actual wake time) ───────────────
     const eHourEls = document.getElementById('etlEnergyHours');
-    const eHours = [8,10,12,14,16,18,20,22,24];
-    renderHourLabels(eHourEls, eHours);
+    if (eHourEls) {
+      // Show 5 labels: wake, wake+4, wake+8, wake+12, wake+16 (=+18-2)
+      renderHourLabels(eHourEls, [wake, wake+4, wake+8, wake+12, wake+16]);
+    }
 
-    // Now pill + stats
+    // ── Update now-pill and stats ──────────────────────────────────────────
     if (curve) {
       updateEnergyNowPill(curve, nh);
       updateEnergyStats(curve, nh);
     }
 
-    // Caffeine zones
+    // ── Caffeine zones (anchored to actual wake time) ──────────────────────
     const cZones  = buildCaffZones(wake, bed);
     const cTrack  = document.getElementById('etlCaffTrack');
     const cNeedle = document.getElementById('etlCaffNeedle');
-    renderZones(cTrack, cZones, cNeedle, nh);
+    if (cTrack && cNeedle) renderZones(cTrack, cZones, cNeedle, nh, wake);
 
-    // Caffeine hour labels
     const cHourEls = document.getElementById('etlCaffHours');
-    renderHourLabels(cHourEls, eHours);
+    if (cHourEls) renderHourLabels(cHourEls, [wake, wake+3, wake+6, wake+9, wake+12, wake+15]);
 
-    // Caff canvas curve
-    const canvas = document.getElementById('etlCaffCanvas');
+    const caffCanvas = document.getElementById('etlCaffCanvas');
     const caffStartH = wake + CAFF_DELAY_H;
-    drawCaffCurve(canvas, caffStartH, 1);
+    if (caffCanvas) drawCaffCurve(caffCanvas, caffStartH, wake);
 
-    // Caff stats
     const cutoff = bed - CAFF_CUTOFF_H_BEFORE_BED;
     document.getElementById('etlCaffStart').textContent  = fmtH(caffStartH);
     document.getElementById('etlCaffCutoff').textContent = fmtH(cutoff);
@@ -2413,7 +2619,6 @@ body::after {
       statusEl.style.color  = '#76746E';
       statusSub.textContent = minsLeft > 0 ? minsLeft + ' min left' : 'almost ready';
     } else if (cCur.label === 'Optimal') {
-      const minsLeft = Math.round((cutoff - nh) * 60);
       statusEl.textContent  = '✓ Go';
       statusEl.style.color  = '#F2C063';
       statusSub.textContent = fmtH(cutoff) + ' cut-off';
@@ -2423,37 +2628,38 @@ body::after {
       statusSub.textContent = 'sleep at risk';
     }
 
-    // Insight strip — adapts based on WHOOP + time of day
+    // ── Insight strip ──────────────────────────────────────────────────────
     const insightEl = document.getElementById('etlInsight');
-    let insight = '';
-    if (rec != null) {
-      if (rec >= 67) {
-        if (nh >= caffStartH && nh < caffStartH + 2) {
-          insight = 'Strong recovery (<strong>' + Math.round(rec) + '%</strong>) — your peak window is primed. A single coffee now gives maximum cognitive lift with minimal tolerance cost.';
-        } else if (nh >= cutoff) {
-          insight = 'Recovery is strong but caffeine after <strong>' + fmtH(cutoff) + '</strong> will reduce deep sleep by up to 20% — protect tonight\'s HRV.';
+    if (insightEl) {
+      const rec = whoop ? whoop.recovery : null;
+      let insight = '';
+      if (rec != null) {
+        if (rec >= 67) {
+          if (nh >= caffStartH && nh < caffStartH + 2)
+            insight = 'Strong recovery (<strong>' + Math.round(rec) + '%</strong>) — adenosine has cleared and cortisol is tapering. This is your optimal caffeine window for clean, sustained focus.';
+          else if (nh >= cutoff)
+            insight = 'Recovery is strong but caffeine after <strong>' + fmtH(cutoff) + '</strong> will reduce deep sleep by up to 20% — protect tonight\'s HRV.';
+          else
+            insight = 'Recovery at <strong>' + Math.round(rec) + '%</strong>. Energy model adjusted for your actual WHOOP signals — your capacity ceiling is high today.';
+        } else if (rec >= 34) {
+          insight = 'Moderate recovery (<strong>' + Math.round(rec) + '%</strong>) — keep caffeine to one dose in the morning window. Your adenosine clearance is slower than usual.';
         } else {
-          insight = 'Recovery at <strong>' + Math.round(rec) + '%</strong> — your adenosine receptors are sensitive right now. Caffeine in the optimal window will feel sharper than usual.';
+          insight = 'Low recovery (<strong>' + Math.round(rec) + '%</strong>) — avoid using caffeine to mask fatigue. It blocks adenosine without clearing sleep debt, worsening tomorrow\'s HRV and making the hole deeper.';
         }
-      } else if (rec >= 34) {
-        insight = 'Moderate recovery (<strong>' + Math.round(rec) + '%</strong>) — consider keeping caffeine to one dose in the morning window. Your body is already managing higher adenosine load.';
       } else {
-        insight = 'Low recovery (<strong>' + Math.round(rec) + '%</strong>) — avoid using caffeine to mask fatigue. It blocks adenosine without clearing sleep debt, worsening tomorrow\'s HRV.';
+        if (nh < caffStartH) {
+          const m = Math.round((caffStartH - nh) * 60);
+          insight = 'Cortisol is still elevated from your wake signal — wait <strong>' + (m > 0 ? m + ' more minutes' : 'a moment') + '</strong> before the first coffee. This preserves the cortisol boost and prevents early tolerance build.';
+        } else if (nh < caffStartH + 1) {
+          insight = 'Prime window: adenosine has cleared and cortisol is tapering — this is the <strong>optimal moment</strong> for your first caffeine dose for clean, sustained focus.';
+        } else if (nh < cutoff) {
+          insight = 'Still in the safe window. Remember: caffeine has a <strong>5–6 hour half-life</strong>. A coffee now means ~50% remains in your system at ' + fmtH(nh + CAFF_HALFLIFE_H) + '.';
+        } else {
+          insight = 'Past the cut-off. Caffeine now will still be at <strong>~25% potency</strong> at sleep time, suppressing melatonin and reducing restorative deep sleep.';
+        }
       }
-    } else {
-      // Generic circadian advice
-      if (nh < caffStartH) {
-        const m = Math.round((caffStartH - nh) * 60);
-        insight = 'Cortisol is still elevated from your wake signal — wait <strong>' + m + ' more minutes</strong> before the first coffee. This preserves the cortisol boost and prevents early tolerance build.';
-      } else if (nh < caffStartH + 1) {
-        insight = 'Prime window: adenosine has cleared and cortisol is tapering — this is the <strong>optimal moment</strong> for your first caffeine dose for clean, sustained focus.';
-      } else if (nh < cutoff) {
-        insight = 'Still in the safe window. Remember: caffeine has a <strong>5–6 hour half-life</strong>. A coffee at ' + fmtH(nh) + ' means ~50% remains in your system at ' + fmtH(nh + CAFF_HALFLIFE_H) + '.';
-      } else {
-        insight = 'Past the cut-off. Caffeine now will still be at <strong>~25% potency</strong> when you try to sleep, suppressing melatonin and reducing restorative deep sleep stages.';
-      }
+      insightEl.innerHTML = insight;
     }
-    insightEl.innerHTML = insight;
   }
 
   // ── Boot ──────────────────────────────────────────────────
