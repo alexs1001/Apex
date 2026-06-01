@@ -517,7 +517,155 @@ body.topbar-modal-open { overflow: hidden; touch-action: none; }
     setInterval(render, 30 * 1000);
     // Background sync every 5 minutes to catch changes from other devices
     setInterval(supaPull, 5 * 60 * 1000);
+
+    // ─── SPA router ──────────────────────────────────────────────
+    // Intercepts topbar link clicks and swaps page content in-place so
+    // Safari never performs a real navigation — the address bar stays hidden.
+    //
+    // Strategy: fetch the target HTML, extract everything between <body> and
+    // </body> minus the topbar header itself, replace document.body's content
+    // except the topbar, then re-execute the new page's inline <script> tags.
+    // history.pushState keeps the URL in sync for back/forward and refresh.
+
+    const PAGES = ['index.html','health.html','gym.html','finance.html','po-water.html'];
+    let _navigating = false;
+
+    // Mark the active topbar pill based on current pathname
+    function markActive(pathname) {
+      const file = pathname.split('/').pop() || 'index.html';
+      const map = {
+        'index.html':    'topbarGoals',
+        'health.html':   'topbarStack',
+        'po-water.html': 'topbarWater',
+        'gym.html':      'topbarGym',
+        'finance.html':  'topbarFinance',
+      };
+      Object.values(map).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('topbar-pill-active');
+      });
+      const active = map[file];
+      if (active) {
+        const el = document.getElementById(active);
+        if (el) el.classList.add('topbar-pill-active');
+      }
+    }
+
+    // Run all inline <script> tags found in the newly-inserted content.
+    // We skip scripts that merely load topbar.js (already running).
+    function runScripts(container) {
+      const scripts = container.querySelectorAll('script');
+      scripts.forEach(orig => {
+        if (orig.src && orig.src.includes('topbar.js')) return; // already loaded
+        const s = document.createElement('script');
+        if (orig.src) {
+          s.src = orig.src;
+          s.async = false;
+        } else {
+          s.textContent = orig.textContent;
+        }
+        // Copy any attributes (type, etc.)
+        Array.from(orig.attributes).forEach(a => {
+          if (a.name !== 'src') s.setAttribute(a.name, a.value);
+        });
+        orig.parentNode.replaceChild(s, orig);
+      });
+    }
+
+    async function navigateTo(url, pushState) {
+      if (_navigating) return;
+      const file = url.split('/').pop().split('?')[0] || 'index.html';
+      if (!PAGES.includes(file)) return; // only handle known pages
+
+      _navigating = true;
+
+      // Swap page-level <style> tags: remove old page styles, inject new ones.
+      // We tag ours so we can find them again.
+      document.querySelectorAll('style[data-page-style]').forEach(s => s.remove());
+
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error(res.status);
+        const html = await res.text();
+
+        // Parse into a throwaway document — avoids executing scripts early
+        const parser = new DOMParser();
+        const doc    = parser.parseFromString(html, 'text/html');
+
+        // ── Swap <title> ────────────────────────────────────────
+        document.title = doc.title;
+
+        // ── Swap page-level <style> blocks from <head> ──────────
+        // (Each page has its own <style> in <head>; we pull them in.)
+        doc.querySelectorAll('head style').forEach(s => {
+          const clone = document.createElement('style');
+          clone.setAttribute('data-page-style', '1');
+          clone.textContent = s.textContent;
+          document.head.appendChild(clone);
+        });
+
+        // ── Swap body content, preserving the topbar ─────────────
+        // The parsed doc's body contains a fresh topbar (injected by
+        // topbar.js on that page). Remove it so we don't double-inject.
+        const newTopbar = doc.body.querySelector('#topbar');
+        if (newTopbar) newTopbar.remove();
+
+        // Remove everything from current body except the topbar header
+        Array.from(document.body.childNodes).forEach(node => {
+          if (node.id !== 'topbar') node.remove();
+        });
+
+        // Move all remaining body nodes into the live document
+        // (DOMParser gives us real DOM nodes we can move across documents)
+        const frag = document.createDocumentFragment();
+        while (doc.body.firstChild) frag.appendChild(doc.body.firstChild);
+        document.body.appendChild(frag);
+
+        // ── Re-run scripts ────────────────────────────────────────
+        runScripts(document.body);
+
+        // ── Update URL + topbar active state ─────────────────────
+        if (pushState) history.pushState({ page: file }, doc.title, '/' + file);
+        markActive(location.pathname);
+        render(); // refresh pill counts immediately
+
+        // ── Scroll to top ─────────────────────────────────────────
+        window.scrollTo(0, 0);
+
+      } catch (e) {
+        // If fetch fails (offline, etc.) fall back to real navigation
+        location.href = url;
+      } finally {
+        _navigating = false;
+      }
+    }
+
+    // Handle back/forward buttons
+    window.addEventListener('popstate', () => {
+      navigateTo(location.pathname, false);
+    });
+
+    // Intercept topbar link clicks only
+    document.getElementById('topbar').addEventListener('click', e => {
+      const link = e.target.closest('a[href]');
+      if (!link) return;
+      const href = link.getAttribute('href');
+      const file = href.split('/').pop().split('?')[0] || 'index.html';
+      if (!PAGES.includes(file)) return;
+      e.preventDefault();
+      navigateTo(href, true);
+    });
+
+    // Set initial active pill based on current page
+    markActive(location.pathname);
   }
+
+  // Add a subtle active-pill indicator (tiny underline dot)
+  (function addActivePillStyle() {
+    const s = document.createElement('style');
+    s.textContent = `.topbar-pill-active { border-color: rgba(255,255,255,0.20) !important; background: rgba(255,255,255,0.07) !important; }`;
+    document.head.appendChild(s);
+  })();
 
   if (document.readyState === 'loading')
     document.addEventListener('DOMContentLoaded', boot, { once: true });
